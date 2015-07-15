@@ -3,13 +3,13 @@ package org.keycloak.authentication;
 import org.jboss.logging.Logger;
 import org.jboss.resteasy.spi.HttpRequest;
 import org.keycloak.ClientConnection;
+import org.keycloak.authentication.authenticators.AbstractFormAuthenticator;
 import org.keycloak.events.Details;
 import org.keycloak.events.Errors;
 import org.keycloak.events.EventBuilder;
-import org.keycloak.events.EventType;
 import org.keycloak.models.AuthenticationExecutionModel;
 import org.keycloak.models.AuthenticationFlowModel;
-import org.keycloak.models.AuthenticatorModel;
+import org.keycloak.models.AuthenticatorConfigModel;
 import org.keycloak.models.ClientSessionModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
@@ -21,10 +21,10 @@ import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.managers.BruteForceProtector;
 import org.keycloak.services.managers.ClientSessionCode;
 import org.keycloak.services.messages.Messages;
+import org.keycloak.util.Time;
 
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriInfo;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -32,6 +32,7 @@ import java.util.List;
  * @version $Revision: 1 $
  */
 public class AuthenticationProcessor {
+    public static final String CURRENT_AUTHENTICATION_EXECUTION = "current.authentication.execution";
     protected static Logger logger = Logger.getLogger(AuthenticationProcessor.class);
     protected RealmModel realm;
     protected UserSessionModel userSession;
@@ -43,7 +44,6 @@ public class AuthenticationProcessor {
     protected EventBuilder event;
     protected HttpRequest request;
     protected String flowId;
-    protected String action;
     /**
      * This could be an error message forwarded from brokering when the broker failed authentication
      * and we want to continue authentication locally.  forwardedErrorMessage can then be displayed by
@@ -62,6 +62,7 @@ public class AuthenticationProcessor {
         ATTEMPTED
 
     }
+
     public static enum Error {
         EXPIRED_CODE,
         INVALID_CLIENT_SESSION,
@@ -148,28 +149,70 @@ public class AuthenticationProcessor {
         return this;
     }
 
-    public AuthenticationProcessor setAction(String action) {
-        this.action = action;
-        return this;
-    }
-
     public AuthenticationProcessor setForwardedErrorMessage(String forwardedErrorMessage) {
         this.forwardedErrorMessage = forwardedErrorMessage;
         return this;
     }
 
+    public String generateCode() {
+        ClientSessionCode accessCode = new ClientSessionCode(getRealm(), getClientSession());
+        clientSession.setTimestamp(Time.currentTime());
+        return accessCode.getCode();
+    }
+
+    public EventBuilder newEvent() {
+        this.event = new EventBuilder(realm, session, connection);
+        return this.event;
+    }
+
+    public EventBuilder getEvent() {
+        return event;
+    }
+
+    public HttpRequest getRequest() {
+        return request;
+    }
+
+    public void setAutheticatedUser(UserModel user) {
+        UserModel previousUser = clientSession.getAuthenticatedUser();
+        if (previousUser != null && !user.getId().equals(previousUser.getId()))
+            throw new AuthException(Error.USER_CONFLICT);
+        validateUser(user);
+        getClientSession().setAuthenticatedUser(user);
+    }
+
+
     private class Result implements AuthenticatorContext {
-        AuthenticatorModel model;
+        AuthenticatorConfigModel authenticatorConfig;
         AuthenticationExecutionModel execution;
         Authenticator authenticator;
         Status status;
         Response challenge;
         Error error;
+        List<AuthenticationExecutionModel> currentExecutions;
 
-        private Result(AuthenticationExecutionModel execution, AuthenticatorModel model, Authenticator authenticator) {
+        private Result(AuthenticationExecutionModel execution, Authenticator authenticator, List<AuthenticationExecutionModel> currentExecutions) {
             this.execution = execution;
-            this.model = model;
             this.authenticator = authenticator;
+            this.currentExecutions = currentExecutions;
+        }
+
+        @Override
+        public EventBuilder newEvent() {
+            return AuthenticationProcessor.this.newEvent();
+        }
+
+        @Override
+        public AuthenticationExecutionModel.Requirement getCategoryRequirementFromCurrentFlow(String authenticatorCategory) {
+            List<AuthenticationExecutionModel> executions = realm.getAuthenticationExecutions(execution.getParentFlow());
+            for (AuthenticationExecutionModel exe : executions) {
+                AuthenticatorFactory factory = (AuthenticatorFactory) getSession().getKeycloakSessionFactory().getProviderFactory(Authenticator.class, exe.getAuthenticator());
+                if (factory != null && factory.getReferenceCategory().equals(authenticatorCategory)) {
+                    return exe.getRequirement();
+                }
+
+            }
+            return null;
         }
 
         @Override
@@ -183,18 +226,11 @@ public class AuthenticationProcessor {
         }
 
         @Override
-        public AuthenticatorModel getAuthenticatorModel() {
-            return model;
-        }
-
-        @Override
-        public void setAuthenticatorModel(AuthenticatorModel model) {
-            this.model = model;
-        }
-
-        @Override
-        public String getAction() {
-            return AuthenticationProcessor.this.action;
+        public AuthenticatorConfigModel getAuthenticatorConfig() {
+            if (execution.getAuthenticatorConfig() == null) return null;
+            if (authenticatorConfig != null) return authenticatorConfig;
+            authenticatorConfig = realm.getAuthenticatorConfigById(execution.getAuthenticatorConfig());
+            return authenticatorConfig;
         }
 
         @Override
@@ -230,12 +266,14 @@ public class AuthenticationProcessor {
             this.challenge = challenge;
 
         }
+
         @Override
         public void forceChallenge(Response challenge) {
             this.status = Status.FORCE_CHALLENGE;
             this.challenge = challenge;
 
         }
+
         @Override
         public void failureChallenge(Error error, Response challenge) {
             this.error = error;
@@ -243,6 +281,7 @@ public class AuthenticationProcessor {
             this.challenge = challenge;
 
         }
+
         @Override
         public void failure(Error error, Response challenge) {
             this.error = error;
@@ -264,10 +303,7 @@ public class AuthenticationProcessor {
 
         @Override
         public void setUser(UserModel user) {
-            UserModel previousUser = getUser();
-            if (previousUser != null && !user.getId().equals(previousUser.getId())) throw new AuthException(Error.USER_CONFLICT);
-            validateUser(user);
-            getClientSession().setAuthenticatedUser(user);
+            setAutheticatedUser(user);
         }
 
         @Override
@@ -322,9 +358,18 @@ public class AuthenticationProcessor {
 
         @Override
         public String generateAccessCode() {
-            ClientSessionCode accessCode = new ClientSessionCode(getRealm(), getClientSession());
-            accessCode.setAction(ClientSessionModel.Action.AUTHENTICATE.name());
-            return accessCode.getCode();
+            return generateCode();
+        }
+
+
+        @Override
+        public Response getChallenge() {
+            return challenge;
+        }
+
+        @Override
+        public Error getError() {
+            return error;
         }
     }
 
@@ -360,28 +405,28 @@ public class AuthenticationProcessor {
         }
     }
 
-    public void logUserFailure() {
+    public void logFailure() {
+        if (realm.isBruteForceProtected()) {
+            String username = clientSession.getNote(AbstractFormAuthenticator.ATTEMPTED_USERNAME);
+            // todo need to handle non form failures
+            if (username == null) {
 
-    }
+            } else {
+                protector.failedLogin(realm, username, connection);
 
-    protected boolean isProcessed(AuthenticationExecutionModel model) {
-        if (model.isDisabled()) return true;
-        UserSessionModel.AuthenticatorStatus status = clientSession.getAuthenticators().get(model.getId());
-        if (status == null) return false;
-        return status == UserSessionModel.AuthenticatorStatus.SUCCESS || status == UserSessionModel.AuthenticatorStatus.SKIPPED
-                || status == UserSessionModel.AuthenticatorStatus.ATTEMPTED
-                || status == UserSessionModel.AuthenticatorStatus.SETUP_REQUIRED;
+            }
+        }
     }
 
     public boolean isSuccessful(AuthenticationExecutionModel model) {
-        UserSessionModel.AuthenticatorStatus status = clientSession.getAuthenticators().get(model.getId());
+        ClientSessionModel.ExecutionStatus status = clientSession.getExecutionStatus().get(model.getId());
         if (status == null) return false;
-        return status == UserSessionModel.AuthenticatorStatus.SUCCESS;
+        return status == ClientSessionModel.ExecutionStatus.SUCCESS;
     }
 
     public Response handleBrowserException(Exception failure) {
         if (failure instanceof AuthException) {
-            AuthException e = (AuthException)failure;
+            AuthException e = (AuthException) failure;
             logger.error("failed authentication: " + e.getError().toString(), e);
             if (e.getError() == AuthenticationProcessor.Error.INVALID_USER) {
                 event.error(Errors.USER_NOT_FOUND);
@@ -397,11 +442,11 @@ public class AuthenticationProcessor {
                 event.error(Errors.INVALID_CODE);
                 return ErrorPage.error(session, Messages.INVALID_CODE);
 
-            }  else if (e.getError() == Error.EXPIRED_CODE) {
+            } else if (e.getError() == Error.EXPIRED_CODE) {
                 event.error(Errors.EXPIRED_CODE);
                 return ErrorPage.error(session, Messages.EXPIRED_CODE);
 
-            }else {
+            } else {
                 event.error(Errors.INVALID_USER_CREDENTIALS);
                 return ErrorPage.error(session, Messages.INVALID_USER);
             }
@@ -414,11 +459,26 @@ public class AuthenticationProcessor {
 
     }
 
+    public AuthenticationFlow createFlowExecution(String flowId, AuthenticationExecutionModel execution) {
+        AuthenticationFlowModel flow = realm.getAuthenticationFlowById(flowId);
+        if (flow == null) {
+            logger.error("Unknown flow to execute with");
+            throw new AuthException(Error.INTERNAL_ERROR);
+        }
+        if (flow.getProviderId() == null || flow.getProviderId().equals(AuthenticationFlow.BASIC_FLOW)) {
+            DefaultAuthenticationFlow flowExecution = new DefaultAuthenticationFlow(this, flow);
+            return flowExecution;
+
+        } else if (flow.getProviderId().equals(AuthenticationFlow.FORM_FLOW)) {
+            FormAuthenticationFlow flowExecution = new FormAuthenticationFlow(this, execution);
+            return flowExecution;
+        }
+        throw new AuthException("Unknown flow provider type", Error.INTERNAL_ERROR);
+    }
 
     public Response authenticate() throws AuthException {
         checkClientSession();
         logger.debug("AUTHENTICATE");
-        event.event(EventType.LOGIN);
         event.client(clientSession.getClient().getClientId())
                 .detail(Details.REDIRECT_URI, clientSession.getRedirectUri())
                 .detail(Details.AUTH_METHOD, clientSession.getAuthMethod());
@@ -428,7 +488,48 @@ public class AuthenticationProcessor {
         }
         UserModel authUser = clientSession.getAuthenticatedUser();
         validateUser(authUser);
-        Response challenge = processFlow(flowId);
+        AuthenticationFlow authenticationFlow = createFlowExecution(this.flowId, null);
+        Response challenge = authenticationFlow.processFlow();
+        if (challenge != null) return challenge;
+        if (clientSession.getAuthenticatedUser() == null) {
+            throw new AuthException(Error.UNKNOWN_USER);
+        }
+        return authenticationComplete();
+    }
+
+    public static void resetFlow(ClientSessionModel clientSession) {
+        clientSession.setAuthenticatedUser(null);
+        clientSession.clearExecutionStatus();
+        clientSession.clearUserSessionNotes();
+        clientSession.removeNote(CURRENT_AUTHENTICATION_EXECUTION);
+    }
+
+    public Response authenticationAction(String execution) {
+        checkClientSession();
+        String current = clientSession.getNote(CURRENT_AUTHENTICATION_EXECUTION);
+        if (!execution.equals(current)) {
+            logger.debug("Current execution does not equal executed execution.  Might be a page refresh");
+            logFailure();
+            resetFlow(clientSession);
+            return authenticate();
+        }
+        AuthenticationExecutionModel model = realm.getAuthenticationExecutionById(execution);
+        if (model == null) {
+            logger.debug("Cannot find execution, reseting flow");
+            logFailure();
+            resetFlow(clientSession);
+            return authenticate();
+        }
+        event.client(clientSession.getClient().getClientId())
+                .detail(Details.REDIRECT_URI, clientSession.getRedirectUri())
+                .detail(Details.AUTH_METHOD, clientSession.getAuthMethod());
+        String authType = clientSession.getNote(Details.AUTH_TYPE);
+        if (authType != null) {
+            event.detail(Details.AUTH_TYPE, authType);
+        }
+
+        AuthenticationFlow authenticationFlow = createFlowExecution(this.flowId, model);
+        Response challenge = authenticationFlow.processAction(execution);
         if (challenge != null) return challenge;
         if (clientSession.getAuthenticatedUser() == null) {
             throw new AuthException(Error.UNKNOWN_USER);
@@ -444,11 +545,11 @@ public class AuthenticationProcessor {
         if (!code.isActionActive(ClientSessionModel.Action.AUTHENTICATE.name())) {
             throw new AuthException(Error.EXPIRED_CODE);
         }
+        clientSession.setTimestamp(Time.currentTime());
     }
 
     public Response authenticateOnly() throws AuthException {
         checkClientSession();
-        event.event(EventType.LOGIN);
         event.client(clientSession.getClient().getClientId())
                 .detail(Details.REDIRECT_URI, clientSession.getRedirectUri())
                 .detail(Details.AUTH_METHOD, clientSession.getAuthMethod());
@@ -458,7 +559,8 @@ public class AuthenticationProcessor {
         }
         UserModel authUser = clientSession.getAuthenticatedUser();
         validateUser(authUser);
-        Response challenge = processFlow(flowId);
+        AuthenticationFlow authenticationFlow = createFlowExecution(this.flowId, null);
+        Response challenge = authenticationFlow.processFlow();
         if (challenge != null) return challenge;
 
         String username = clientSession.getAuthenticatedUser().getUsername();
@@ -481,125 +583,6 @@ public class AuthenticationProcessor {
         return AuthenticationManager.redirectAfterSuccessfulFlow(session, realm, userSession, clientSession, request, uriInfo, connection);
 
     }
-
-    public Response processFlow(String flowId) {
-        AuthenticationFlowModel flow = realm.getAuthenticationFlowById(flowId);
-        if (flow == null) {
-            logger.error("Unknown flow to execute with");
-            throw new AuthException(Error.INTERNAL_ERROR);
-        }
-        List<AuthenticationExecutionModel> executions = realm.getAuthenticationExecutions(flowId);
-        if (executions == null) return null;
-        Response alternativeChallenge = null;
-        AuthenticationExecutionModel challengedAlternativeExecution = null;
-        boolean alternativeSuccessful = false;
-        for (AuthenticationExecutionModel model : executions) {
-            if (isProcessed(model)) {
-                logger.debug("execution is processed");
-                if (!alternativeSuccessful && model.isAlternative() && isSuccessful(model)) alternativeSuccessful = true;
-                continue;
-            }
-            Result context = null;
-            if (model.isAlternative() && alternativeSuccessful) {
-                clientSession.setAuthenticatorStatus(model.getId(), UserSessionModel.AuthenticatorStatus.SKIPPED);
-                continue;
-            }
-            if (model.isAutheticatorFlow()) {
-                Response flowResponse = processFlow(model.getAuthenticator());
-                if (flowResponse == null) {
-                    clientSession.setAuthenticatorStatus(model.getId(), UserSessionModel.AuthenticatorStatus.SUCCESS);
-                    if (model.isAlternative()) alternativeSuccessful = true;
-                    continue;
-                } else {
-                    return flowResponse;
-                }
-
-            }
-
-            AuthenticatorModel authenticatorModel = realm.getAuthenticatorById(model.getAuthenticator());
-            AuthenticatorFactory factory = (AuthenticatorFactory)session.getKeycloakSessionFactory().getProviderFactory(Authenticator.class, authenticatorModel.getProviderId());
-            Authenticator authenticator = factory.create(authenticatorModel);
-            logger.debugv("authenticator: {0}", authenticatorModel.getProviderId());
-            UserModel authUser = clientSession.getAuthenticatedUser();
-
-            if (authenticator.requiresUser() && authUser == null){
-                if (alternativeChallenge != null) {
-                    clientSession.setAuthenticatorStatus(challengedAlternativeExecution.getId(), UserSessionModel.AuthenticatorStatus.CHALLENGED);
-                    return alternativeChallenge;
-                }
-                throw new AuthException("authenticator: " + authenticatorModel.getProviderId(), Error.UNKNOWN_USER);
-            }
-            boolean configuredFor = false;
-            if (authenticator.requiresUser() && authUser != null) {
-                configuredFor = authenticator.configuredFor(session, realm, authUser);
-                if (!configuredFor) {
-                    if (model.isRequired()) {
-                        if (model.isUserSetupAllowed()) {
-                            logger.debugv("authenticator SETUP_REQUIRED: {0}", authenticatorModel.getProviderId());
-                            clientSession.setAuthenticatorStatus(model.getId(), UserSessionModel.AuthenticatorStatus.SETUP_REQUIRED);
-                            authenticator.setRequiredActions(session, realm, clientSession.getAuthenticatedUser());
-                            continue;
-                        } else {
-                            throw new AuthException(Error.CREDENTIAL_SETUP_REQUIRED);
-                        }
-                    } else if (model.isOptional()) {
-                        clientSession.setAuthenticatorStatus(model.getId(), UserSessionModel.AuthenticatorStatus.SKIPPED);
-                        continue;
-                    }
-                }
-            }
-            context = new Result(model, authenticatorModel, authenticator);
-            authenticator.authenticate(context);
-            Status result = context.getStatus();
-            if (result == Status.SUCCESS){
-                logger.debugv("authenticator SUCCESS: {0}", authenticatorModel.getProviderId());
-                clientSession.setAuthenticatorStatus(model.getId(), UserSessionModel.AuthenticatorStatus.SUCCESS);
-                if (model.isAlternative()) alternativeSuccessful = true;
-                continue;
-            } else if (result == Status.FAILED) {
-                logger.debugv("authenticator FAILED: {0}", authenticatorModel.getProviderId());
-                logUserFailure();
-                clientSession.setAuthenticatorStatus(model.getId(), UserSessionModel.AuthenticatorStatus.FAILED);
-                if (context.challenge != null) return context.challenge;
-                throw new AuthException(context.error);
-            } else if (result == Status.FORCE_CHALLENGE) {
-                clientSession.setAuthenticatorStatus(model.getId(), UserSessionModel.AuthenticatorStatus.CHALLENGED);
-                return context.challenge;
-            } else if (result == Status.CHALLENGE) {
-                logger.debugv("authenticator CHALLENGE: {0}", authenticatorModel.getProviderId());
-                if (model.isRequired() || (model.isOptional() && configuredFor)) {
-                    clientSession.setAuthenticatorStatus(model.getId(), UserSessionModel.AuthenticatorStatus.CHALLENGED);
-                    return context.challenge;
-                }
-                else if (model.isAlternative()) {
-                    alternativeChallenge = context.challenge;
-                    challengedAlternativeExecution = model;
-                } else {
-                    clientSession.setAuthenticatorStatus(model.getId(), UserSessionModel.AuthenticatorStatus.SKIPPED);
-                }
-                continue;
-            } else if (result == Status.FAILURE_CHALLENGE) {
-                logger.debugv("authenticator FAILURE_CHALLENGE: {0}", authenticatorModel.getProviderId());
-                logUserFailure();
-                clientSession.setAuthenticatorStatus(model.getId(), UserSessionModel.AuthenticatorStatus.CHALLENGED);
-                return context.challenge;
-            } else if (result == Status.ATTEMPTED) {
-                logger.debugv("authenticator ATTEMPTED: {0}", authenticatorModel.getProviderId());
-                if (model.getRequirement() == AuthenticationExecutionModel.Requirement.REQUIRED) {
-                    throw new AuthException(Error.INVALID_CREDENTIALS);
-                }
-                clientSession.setAuthenticatorStatus(model.getId(), UserSessionModel.AuthenticatorStatus.ATTEMPTED);
-                continue;
-            } else {
-                logger.debugv("authenticator INTERNAL_ERROR: {0}", authenticatorModel.getProviderId());
-                logger.error("Unknown result status");
-                throw new AuthException(Error.INTERNAL_ERROR);
-            }
-        }
-        return null;
-    }
-
-
 
     public void validateUser(UserModel authenticatedUser) {
         if (authenticatedUser != null) {
@@ -625,11 +608,15 @@ public class AuthenticationProcessor {
         }
         TokenManager.attachClientSession(userSession, clientSession);
         event.user(userSession.getUser())
-             .detail(Details.USERNAME, username)
-             .session(userSession);
+                .detail(Details.USERNAME, username)
+                .session(userSession);
 
         return AuthenticationManager.nextActionAfterAuthentication(session, userSession, clientSession, connection, request, uriInfo, event);
 
+    }
+
+    public AuthenticatorContext createAuthenticatorContext(AuthenticationExecutionModel model, Authenticator authenticator, List<AuthenticationExecutionModel> executions) {
+        return new Result(model, authenticator, executions);
     }
 
 

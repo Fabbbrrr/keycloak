@@ -334,6 +334,21 @@ public class InfinispanUserSessionProvider implements UserSessionProvider {
         }
     }
 
+    @Override
+    public void removeClientSession(RealmModel realm, ClientSessionModel clientSession) {
+        UserSessionModel userSession = clientSession.getUserSession();
+        if (userSession != null)  {
+            UserSessionEntity entity = ((UserSessionAdapter) userSession).getEntity();
+            if (entity.getClientSessions() != null) {
+                entity.getClientSessions().remove(clientSession.getId());
+
+            }
+            tx.replace(sessionCache, entity.getId(), entity);
+        }
+        tx.remove(sessionCache, clientSession.getId());
+    }
+
+
     void dettachSession(UserSessionModel userSession, ClientSessionModel clientSession) {
         UserSessionEntity entity = ((UserSessionAdapter) userSession).getEntity();
         String clientSessionId = clientSession.getId();
@@ -346,7 +361,7 @@ public class InfinispanUserSessionProvider implements UserSessionProvider {
         }
     }
 
-    void removeUserSession(RealmModel realm, String userSessionId) {
+    protected void removeUserSession(RealmModel realm, String userSessionId) {
         tx.remove(sessionCache, userSessionId);
 
         Map<String, String> map = new MapReduceTask(sessionCache)
@@ -358,6 +373,7 @@ public class InfinispanUserSessionProvider implements UserSessionProvider {
             tx.remove(sessionCache, id);
         }
     }
+
 
     InfinispanKeycloakTransaction getTx() {
         return tx;

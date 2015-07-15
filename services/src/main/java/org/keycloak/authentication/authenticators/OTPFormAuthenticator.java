@@ -5,7 +5,7 @@ import org.keycloak.authentication.Authenticator;
 import org.keycloak.authentication.AuthenticatorContext;
 import org.keycloak.events.Errors;
 import org.keycloak.login.LoginFormsProvider;
-import org.keycloak.models.AuthenticatorModel;
+import org.keycloak.models.AuthenticatorConfigModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserCredentialModel;
@@ -25,20 +25,16 @@ import java.util.List;
  */
 public class OTPFormAuthenticator extends AbstractFormAuthenticator implements Authenticator {
     public static final String TOTP_FORM_ACTION = "totp";
-    protected AuthenticatorModel model;
 
-    public OTPFormAuthenticator(AuthenticatorModel model) {
-        this.model = model;
+    @Override
+    public void action(AuthenticatorContext context) {
+        validateOTP(context);
     }
 
     @Override
     public void authenticate(AuthenticatorContext context) {
-        if (!isAction(context, TOTP_FORM_ACTION)) {
-            Response challengeResponse = challenge(context, null);
-            context.challenge(challengeResponse);
-            return;
-        }
-        validateOTP(context);
+        Response challengeResponse = challenge(context, null);
+        context.challenge(challengeResponse);
     }
 
     public void validateOTP(AuthenticatorContext context) {
@@ -69,7 +65,7 @@ public class OTPFormAuthenticator extends AbstractFormAuthenticator implements A
 
     protected Response challenge(AuthenticatorContext context, String error) {
         String accessCode = context.generateAccessCode();
-        URI action = AbstractFormAuthenticator.getActionUrl(context, accessCode, TOTP_FORM_ACTION);
+        URI action = getActionUrl(context, accessCode);
         LoginFormsProvider forms = context.getSession().getProvider(LoginFormsProvider.class)
                 .setActionUri(action)
                 .setClientSessionCode(accessCode);
@@ -90,6 +86,8 @@ public class OTPFormAuthenticator extends AbstractFormAuthenticator implements A
         }
 
     }
+
+
 
     @Override
     public void close() {

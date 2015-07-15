@@ -9,17 +9,20 @@ import org.keycloak.federation.kerberos.impl.SPNEGOAuthenticator;
 import org.keycloak.federation.ldap.idm.model.LDAPObject;
 import org.keycloak.federation.ldap.idm.query.Condition;
 import org.keycloak.federation.ldap.idm.query.QueryParameter;
-import org.keycloak.federation.ldap.idm.query.internal.LDAPIdentityQuery;
+import org.keycloak.federation.ldap.idm.query.internal.LDAPQuery;
 import org.keycloak.federation.ldap.idm.query.internal.LDAPQueryConditionsBuilder;
 import org.keycloak.federation.ldap.idm.store.ldap.LDAPIdentityStore;
 import org.keycloak.federation.ldap.mappers.FullNameLDAPFederationMapper;
 import org.keycloak.federation.ldap.mappers.FullNameLDAPFederationMapperFactory;
+import org.keycloak.federation.ldap.mappers.LDAPFederationMapper;
 import org.keycloak.federation.ldap.mappers.UserAttributeLDAPFederationMapper;
 import org.keycloak.federation.ldap.mappers.UserAttributeLDAPFederationMapperFactory;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.models.KeycloakSessionTask;
 import org.keycloak.models.LDAPConstants;
+import org.keycloak.models.ModelDuplicateException;
+import org.keycloak.models.ModelException;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserFederationEventAwareProviderFactory;
 import org.keycloak.models.UserFederationMapperModel;
@@ -84,14 +87,18 @@ public class LDAPFederationProviderFactory extends UserFederationEventAwareProvi
 
         boolean activeDirectory = ldapConfig.isActiveDirectory();
         UserFederationProvider.EditMode editMode = ldapConfig.getEditMode();
-        String readOnly = String.valueOf(editMode==UserFederationProvider.EditMode.READ_ONLY || editMode== UserFederationProvider.EditMode.UNSYNCED);
+        String readOnly = String.valueOf(editMode == UserFederationProvider.EditMode.READ_ONLY || editMode == UserFederationProvider.EditMode.UNSYNCED);
         String usernameLdapAttribute = ldapConfig.getUsernameLdapAttribute();
+
+        String alwaysReadValueFromLDAP = String.valueOf(editMode==UserFederationProvider.EditMode.READ_ONLY || editMode== UserFederationProvider.EditMode.WRITABLE);
 
         UserFederationMapperModel mapperModel;
         mapperModel = KeycloakModelUtils.createUserFederationMapperModel("username", newProviderModel.getId(), UserAttributeLDAPFederationMapperFactory.PROVIDER_ID,
                 UserAttributeLDAPFederationMapper.USER_MODEL_ATTRIBUTE, UserModel.USERNAME,
                 UserAttributeLDAPFederationMapper.LDAP_ATTRIBUTE, usernameLdapAttribute,
-                UserAttributeLDAPFederationMapper.READ_ONLY, readOnly);
+                UserAttributeLDAPFederationMapper.READ_ONLY, readOnly,
+                UserAttributeLDAPFederationMapper.ALWAYS_READ_VALUE_FROM_LDAP, "false",
+                UserAttributeLDAPFederationMapper.IS_MANDATORY_IN_LDAP, "true");
         realm.addUserFederationMapper(mapperModel);
 
         // CN is typically used as RDN for Active Directory deployments
@@ -103,7 +110,9 @@ public class LDAPFederationProviderFactory extends UserFederationEventAwareProvi
                 mapperModel = KeycloakModelUtils.createUserFederationMapperModel("first name", newProviderModel.getId(), UserAttributeLDAPFederationMapperFactory.PROVIDER_ID,
                         UserAttributeLDAPFederationMapper.USER_MODEL_ATTRIBUTE, UserModel.FIRST_NAME,
                         UserAttributeLDAPFederationMapper.LDAP_ATTRIBUTE, LDAPConstants.GIVENNAME,
-                        UserAttributeLDAPFederationMapper.READ_ONLY, readOnly);
+                        UserAttributeLDAPFederationMapper.READ_ONLY, readOnly,
+                        UserAttributeLDAPFederationMapper.ALWAYS_READ_VALUE_FROM_LDAP, alwaysReadValueFromLDAP,
+                        UserAttributeLDAPFederationMapper.IS_MANDATORY_IN_LDAP, "true");
                 realm.addUserFederationMapper(mapperModel);
 
             } else {
@@ -113,13 +122,17 @@ public class LDAPFederationProviderFactory extends UserFederationEventAwareProvi
                     mapperModel = KeycloakModelUtils.createUserFederationMapperModel("first name", newProviderModel.getId(), UserAttributeLDAPFederationMapperFactory.PROVIDER_ID,
                             UserAttributeLDAPFederationMapper.USER_MODEL_ATTRIBUTE, UserModel.FIRST_NAME,
                             UserAttributeLDAPFederationMapper.LDAP_ATTRIBUTE, LDAPConstants.GIVENNAME,
-                            UserAttributeLDAPFederationMapper.READ_ONLY, readOnly);
+                            UserAttributeLDAPFederationMapper.READ_ONLY, readOnly,
+                            UserAttributeLDAPFederationMapper.ALWAYS_READ_VALUE_FROM_LDAP, alwaysReadValueFromLDAP,
+                            UserAttributeLDAPFederationMapper.IS_MANDATORY_IN_LDAP, "true");
                     realm.addUserFederationMapper(mapperModel);
 
                     mapperModel = KeycloakModelUtils.createUserFederationMapperModel("username-cn", newProviderModel.getId(), UserAttributeLDAPFederationMapperFactory.PROVIDER_ID,
                             UserAttributeLDAPFederationMapper.USER_MODEL_ATTRIBUTE, UserModel.USERNAME,
                             UserAttributeLDAPFederationMapper.LDAP_ATTRIBUTE, LDAPConstants.CN,
-                            UserAttributeLDAPFederationMapper.READ_ONLY, readOnly);
+                            UserAttributeLDAPFederationMapper.READ_ONLY, readOnly,
+                            UserAttributeLDAPFederationMapper.ALWAYS_READ_VALUE_FROM_LDAP, "false",
+                            UserAttributeLDAPFederationMapper.IS_MANDATORY_IN_LDAP, "true");
                     realm.addUserFederationMapper(mapperModel);
                 } else {
 
@@ -134,20 +147,26 @@ public class LDAPFederationProviderFactory extends UserFederationEventAwareProvi
             mapperModel = KeycloakModelUtils.createUserFederationMapperModel("first name", newProviderModel.getId(), UserAttributeLDAPFederationMapperFactory.PROVIDER_ID,
                     UserAttributeLDAPFederationMapper.USER_MODEL_ATTRIBUTE, UserModel.FIRST_NAME,
                     UserAttributeLDAPFederationMapper.LDAP_ATTRIBUTE, LDAPConstants.CN,
-                    UserAttributeLDAPFederationMapper.READ_ONLY, readOnly);
+                    UserAttributeLDAPFederationMapper.READ_ONLY, readOnly,
+                    UserAttributeLDAPFederationMapper.ALWAYS_READ_VALUE_FROM_LDAP, alwaysReadValueFromLDAP,
+                    UserAttributeLDAPFederationMapper.IS_MANDATORY_IN_LDAP, "true");
             realm.addUserFederationMapper(mapperModel);
         }
 
         mapperModel = KeycloakModelUtils.createUserFederationMapperModel("last name", newProviderModel.getId(), UserAttributeLDAPFederationMapperFactory.PROVIDER_ID,
                 UserAttributeLDAPFederationMapper.USER_MODEL_ATTRIBUTE, UserModel.LAST_NAME,
                 UserAttributeLDAPFederationMapper.LDAP_ATTRIBUTE, LDAPConstants.SN,
-                UserAttributeLDAPFederationMapper.READ_ONLY, readOnly);
+                UserAttributeLDAPFederationMapper.READ_ONLY, readOnly,
+                UserAttributeLDAPFederationMapper.ALWAYS_READ_VALUE_FROM_LDAP, alwaysReadValueFromLDAP,
+                UserAttributeLDAPFederationMapper.IS_MANDATORY_IN_LDAP, "true");
         realm.addUserFederationMapper(mapperModel);
 
         mapperModel = KeycloakModelUtils.createUserFederationMapperModel("email", newProviderModel.getId(), UserAttributeLDAPFederationMapperFactory.PROVIDER_ID,
                 UserAttributeLDAPFederationMapper.USER_MODEL_ATTRIBUTE, UserModel.EMAIL,
                 UserAttributeLDAPFederationMapper.LDAP_ATTRIBUTE, LDAPConstants.EMAIL,
-                UserAttributeLDAPFederationMapper.READ_ONLY, readOnly);
+                UserAttributeLDAPFederationMapper.READ_ONLY, readOnly,
+                UserAttributeLDAPFederationMapper.ALWAYS_READ_VALUE_FROM_LDAP, "false",
+                UserAttributeLDAPFederationMapper.IS_MANDATORY_IN_LDAP, "false");
         realm.addUserFederationMapper(mapperModel);
 
         String createTimestampLdapAttrName = activeDirectory ? "whenCreated" : LDAPConstants.CREATE_TIMESTAMP;
@@ -157,14 +176,18 @@ public class LDAPFederationProviderFactory extends UserFederationEventAwareProvi
         mapperModel = KeycloakModelUtils.createUserFederationMapperModel("creation date", newProviderModel.getId(), UserAttributeLDAPFederationMapperFactory.PROVIDER_ID,
                 UserAttributeLDAPFederationMapper.USER_MODEL_ATTRIBUTE, LDAPConstants.CREATE_TIMESTAMP,
                 UserAttributeLDAPFederationMapper.LDAP_ATTRIBUTE, createTimestampLdapAttrName,
-                UserAttributeLDAPFederationMapper.READ_ONLY, "true");
+                UserAttributeLDAPFederationMapper.READ_ONLY, "true",
+                UserAttributeLDAPFederationMapper.ALWAYS_READ_VALUE_FROM_LDAP, alwaysReadValueFromLDAP,
+                UserAttributeLDAPFederationMapper.IS_MANDATORY_IN_LDAP, "false");
         realm.addUserFederationMapper(mapperModel);
 
         // map modifyTimeStamp as read-only
         mapperModel = KeycloakModelUtils.createUserFederationMapperModel("modify date", newProviderModel.getId(), UserAttributeLDAPFederationMapperFactory.PROVIDER_ID,
                 UserAttributeLDAPFederationMapper.USER_MODEL_ATTRIBUTE, LDAPConstants.MODIFY_TIMESTAMP,
                 UserAttributeLDAPFederationMapper.LDAP_ATTRIBUTE, modifyTimestampLdapAttrName,
-                UserAttributeLDAPFederationMapper.READ_ONLY, "true");
+                UserAttributeLDAPFederationMapper.READ_ONLY, "true",
+                UserAttributeLDAPFederationMapper.ALWAYS_READ_VALUE_FROM_LDAP, alwaysReadValueFromLDAP,
+                UserAttributeLDAPFederationMapper.IS_MANDATORY_IN_LDAP, "false");
         realm.addUserFederationMapper(mapperModel);
     }
 
@@ -173,7 +196,7 @@ public class LDAPFederationProviderFactory extends UserFederationEventAwareProvi
     public UserFederationSyncResult syncAllUsers(KeycloakSessionFactory sessionFactory, final String realmId, final UserFederationProviderModel model) {
         logger.infof("Sync all users from LDAP to local store: realm: %s, federation provider: %s", realmId, model.getDisplayName());
 
-        LDAPIdentityQuery userQuery = createQuery(sessionFactory, realmId, model);
+        LDAPQuery userQuery = createQuery(sessionFactory, realmId, model);
         UserFederationSyncResult syncResult = syncImpl(sessionFactory, userQuery, realmId, model);
 
         // TODO: Remove all existing keycloak users, which have federation links, but are not in LDAP. Perhaps don't check users, which were just added or updated during this sync?
@@ -192,7 +215,7 @@ public class LDAPFederationProviderFactory extends UserFederationEventAwareProvi
         Condition modifyCondition = conditionsBuilder.greaterThanOrEqualTo(new QueryParameter(LDAPConstants.MODIFY_TIMESTAMP), lastSync);
         Condition orCondition = conditionsBuilder.orCondition(createCondition, modifyCondition);
 
-        LDAPIdentityQuery userQuery = createQuery(sessionFactory, realmId, model);
+        LDAPQuery userQuery = createQuery(sessionFactory, realmId, model);
         userQuery.where(orCondition);
         UserFederationSyncResult result = syncImpl(sessionFactory, userQuery, realmId, model);
 
@@ -200,7 +223,7 @@ public class LDAPFederationProviderFactory extends UserFederationEventAwareProvi
         return result;
     }
 
-    protected UserFederationSyncResult syncImpl(KeycloakSessionFactory sessionFactory, LDAPIdentityQuery userQuery, final String realmId, final UserFederationProviderModel fedModel) {
+    protected UserFederationSyncResult syncImpl(KeycloakSessionFactory sessionFactory, LDAPQuery userQuery, final String realmId, final UserFederationProviderModel fedModel) {
 
         final UserFederationSyncResult syncResult = new UserFederationSyncResult();
 
@@ -215,37 +238,22 @@ public class LDAPFederationProviderFactory extends UserFederationEventAwareProvi
                 userQuery.setLimit(pageSize);
                 final List<LDAPObject> users = userQuery.getResultList();
                 nextPage = userQuery.getPaginationContext() != null;
-
-                KeycloakModelUtils.runJobInTransaction(sessionFactory, new KeycloakSessionTask() {
-
-                    @Override
-                    public void run(KeycloakSession session) {
-                        UserFederationSyncResult currentPageSync = importLdapUsers(session, realmId, fedModel, users);
-                        syncResult.add(currentPageSync);
-                    }
-
-                });
+                UserFederationSyncResult currentPageSync = importLdapUsers(sessionFactory, realmId, fedModel, users);
+                syncResult.add(currentPageSync);
             }
         } else {
             // LDAP pagination not available. Do everything in single transaction
             final List<LDAPObject> users = userQuery.getResultList();
-            KeycloakModelUtils.runJobInTransaction(sessionFactory, new KeycloakSessionTask() {
-
-                @Override
-                public void run(KeycloakSession session) {
-                    UserFederationSyncResult currentSync = importLdapUsers(session, realmId, fedModel, users);
-                    syncResult.add(currentSync);
-                }
-
-            });
+            UserFederationSyncResult currentSync = importLdapUsers(sessionFactory, realmId, fedModel, users);
+            syncResult.add(currentSync);
         }
 
         return syncResult;
     }
 
-    private LDAPIdentityQuery createQuery(KeycloakSessionFactory sessionFactory, final String realmId, final UserFederationProviderModel model) {
+    private LDAPQuery createQuery(KeycloakSessionFactory sessionFactory, final String realmId, final UserFederationProviderModel model) {
         class QueryHolder {
-            LDAPIdentityQuery query;
+            LDAPQuery query;
         }
 
         final QueryHolder queryHolder = new QueryHolder();
@@ -262,11 +270,81 @@ public class LDAPFederationProviderFactory extends UserFederationEventAwareProvi
         return queryHolder.query;
     }
 
+    protected UserFederationSyncResult importLdapUsers(KeycloakSessionFactory sessionFactory, final String realmId, final UserFederationProviderModel fedModel, List<LDAPObject> ldapUsers) {
+        final UserFederationSyncResult syncResult = new UserFederationSyncResult();
 
-    protected UserFederationSyncResult importLdapUsers(KeycloakSession session, String realmId, UserFederationProviderModel fedModel, List<LDAPObject> ldapUsers) {
-        RealmModel realm = session.realms().getRealm(realmId);
-        LDAPFederationProvider ldapFedProvider = getInstance(session, fedModel);
-        return ldapFedProvider.importLDAPUsers(realm, ldapUsers, fedModel);
+        class BooleanHolder {
+            private boolean value = true;
+        }
+        final BooleanHolder exists = new BooleanHolder();
+
+        for (final LDAPObject ldapUser : ldapUsers) {
+
+            try {
+
+                // Process each user in it's own transaction to avoid global fail
+                KeycloakModelUtils.runJobInTransaction(sessionFactory, new KeycloakSessionTask() {
+
+                    @Override
+                    public void run(KeycloakSession session) {
+                        LDAPFederationProvider ldapFedProvider = getInstance(session, fedModel);
+                        RealmModel currentRealm = session.realms().getRealm(realmId);
+
+                        String username = LDAPUtils.getUsername(ldapUser, ldapFedProvider.getLdapIdentityStore().getConfig());
+                        UserModel currentUser = session.userStorage().getUserByUsername(username, currentRealm);
+
+                        if (currentUser == null) {
+
+                            // Add new user to Keycloak
+                            exists.value = false;
+                            ldapFedProvider.importUserFromLDAP(session, currentRealm, ldapUser);
+                            syncResult.increaseAdded();
+
+                        } else {
+                            if ((fedModel.getId().equals(currentUser.getFederationLink())) && (ldapUser.getUuid().equals(currentUser.getFirstAttribute(LDAPConstants.LDAP_ID)))) {
+
+                                // Update keycloak user
+                                Set<UserFederationMapperModel> federationMappers = currentRealm.getUserFederationMappersByFederationProvider(fedModel.getId());
+                                for (UserFederationMapperModel mapperModel : federationMappers) {
+                                    LDAPFederationMapper ldapMapper = ldapFedProvider.getMapper(mapperModel);
+                                    ldapMapper.onImportUserFromLDAP(mapperModel, ldapFedProvider, ldapUser, currentUser, currentRealm, false);
+                                }
+
+                                logger.debugf("Updated user from LDAP: %s", currentUser.getUsername());
+                                syncResult.increaseUpdated();
+                            } else {
+                                logger.warnf("User '%s' is not updated during sync as he already exists in Keycloak database but is not linked to federation provider '%s'", username, fedModel.getDisplayName());
+                                syncResult.increaseFailed();
+                            }
+                        }
+                    }
+
+                });
+            } catch (ModelException me) {
+                logger.error("Failed during import user from LDAP", me);
+                syncResult.increaseFailed();
+
+                // Remove user if we already added him during this transaction
+                if (!exists.value) {
+                    KeycloakModelUtils.runJobInTransaction(sessionFactory, new KeycloakSessionTask() {
+
+                        @Override
+                        public void run(KeycloakSession session) {
+                            LDAPFederationProvider ldapFedProvider = getInstance(session, fedModel);
+                            RealmModel currentRealm = session.realms().getRealm(realmId);
+                            String username = LDAPUtils.getUsername(ldapUser, ldapFedProvider.getLdapIdentityStore().getConfig());
+                            UserModel existing = session.userStorage().getUserByUsername(username, currentRealm);
+                            if (existing != null) {
+                                session.userStorage().removeUser(currentRealm, existing);
+                            }
+                        }
+
+                    });
+                }
+            }
+        }
+
+        return syncResult;
     }
 
     protected SPNEGOAuthenticator createSPNEGOAuthenticator(String spnegoToken, CommonKerberosConfig kerberosConfig) {

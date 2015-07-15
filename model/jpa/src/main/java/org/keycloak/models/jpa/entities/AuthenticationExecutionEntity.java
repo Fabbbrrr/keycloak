@@ -19,9 +19,9 @@ import javax.persistence.Table;
 @Table(name="AUTHENTICATION_EXECUTION")
 @Entity
 @NamedQueries({
-        @NamedQuery(name="getAuthenticationExecutionsByFlow", query="select authenticator from AuthenticationExecutionEntity authenticator where authenticator.realm = :realm and authenticator.flow = :flow"),
+        @NamedQuery(name="getAuthenticationExecutionsByFlow", query="select authenticator from AuthenticationExecutionEntity authenticator where authenticator.realm = :realm and authenticator.parentFlow = :parentFlow"),
         @NamedQuery(name="deleteAuthenticationExecutionsByRealm", query="delete from AuthenticationExecutionEntity authenticator where authenticator.realm = :realm"),
-        @NamedQuery(name="deleteAuthenticationExecutionsByRealmAndFlow", query="delete from AuthenticationExecutionEntity authenticator where authenticator.realm = :realm and authenticator.flow = :flow"),
+        @NamedQuery(name="deleteAuthenticationExecutionsByRealmAndFlow", query="delete from AuthenticationExecutionEntity authenticator where authenticator.realm = :realm and authenticator.parentFlow = :parentFlow"),
 })
 public class AuthenticationExecutionEntity {
     @Id
@@ -34,10 +34,16 @@ public class AuthenticationExecutionEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "FLOW_ID")
-    protected AuthenticationFlowEntity flow;
+    protected AuthenticationFlowEntity parentFlow;
 
     @Column(name="AUTHENTICATOR")
     protected String authenticator;
+
+    @Column(name="AUTH_CONFIG")
+    protected String authenticatorConfig;
+
+    @Column(name="AUTH_FLOW_ID")
+    protected String flowId;
 
     @Column(name="REQUIREMENT")
     protected AuthenticationExecutionModel.Requirement requirement;
@@ -107,11 +113,27 @@ public class AuthenticationExecutionEntity {
         this.autheticatorFlow = autheticatorFlow;
     }
 
-    public AuthenticationFlowEntity getFlow() {
-        return flow;
+    public AuthenticationFlowEntity getParentFlow() {
+        return parentFlow;
     }
 
-    public void setFlow(AuthenticationFlowEntity flow) {
-        this.flow = flow;
+    public void setParentFlow(AuthenticationFlowEntity flow) {
+        this.parentFlow = flow;
+    }
+
+    public String getFlowId() {
+        return flowId;
+    }
+
+    public void setFlowId(String flowId) {
+        this.flowId = flowId;
+    }
+
+    public String getAuthenticatorConfig() {
+        return authenticatorConfig;
+    }
+
+    public void setAuthenticatorConfig(String authenticatorConfig) {
+        this.authenticatorConfig = authenticatorConfig;
     }
 }

@@ -166,6 +166,14 @@ public class ClientSessionAdapter implements ClientSessionModel {
     }
 
     @Override
+    public Map<String, String> getNotes() {
+        if (entity.getNotes() == null || entity.getNotes().isEmpty()) return Collections.emptyMap();
+        Map<String, String> copy = new HashMap<>();
+        copy.putAll(entity.getNotes());
+        return copy;
+    }
+
+    @Override
     public void setUserSessionNote(String name, String value) {
         if (entity.getUserSessionNotes() == null) {
             entity.setUserSessionNotes(new HashMap<String, String>());
@@ -185,32 +193,43 @@ public class ClientSessionAdapter implements ClientSessionModel {
         return copy;
     }
 
+    @Override
+    public void clearUserSessionNotes() {
+        entity.setUserSessionNotes(new HashMap<String, String>());
+        update();
+
+    }
+
     void update() {
         provider.getTx().replace(cache, entity.getId(), entity);
     }
     @Override
-    public Map<String, UserSessionModel.AuthenticatorStatus> getAuthenticators() {
+    public Map<String, ExecutionStatus> getExecutionStatus() {
         return entity.getAuthenticatorStatus();
     }
 
     @Override
-    public void setAuthenticatorStatus(String authenticator, UserSessionModel.AuthenticatorStatus status) {
+    public void setExecutionStatus(String authenticator, ExecutionStatus status) {
         entity.getAuthenticatorStatus().put(authenticator, status);
+        update();
 
     }
 
     @Override
-    public void setAuthenticatorStatus(Map<String, UserSessionModel.AuthenticatorStatus> status) {
-        entity.setAuthenticatorStatus(status);
+    public void clearExecutionStatus() {
+        entity.getAuthenticatorStatus().clear();
+        update();
     }
 
     @Override
     public UserModel getAuthenticatedUser() {
-        return session.users().getUserById(entity.getAuthUserId(), realm);    }
+        return entity.getAuthUserId() == null ? null : session.users().getUserById(entity.getAuthUserId(), realm);    }
 
     @Override
     public void setAuthenticatedUser(UserModel user) {
-        entity.setAuthUserId(user.getId());
+        if (user == null) entity.setAuthUserId(null);
+        else entity.setAuthUserId(user.getId());
+        update();
 
     }
 

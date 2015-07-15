@@ -4,14 +4,13 @@ import org.jboss.resteasy.spi.HttpRequest;
 import org.keycloak.ClientConnection;
 import org.keycloak.events.EventBuilder;
 import org.keycloak.models.AuthenticationExecutionModel;
-import org.keycloak.models.AuthenticatorModel;
+import org.keycloak.models.AuthenticatorConfigModel;
 import org.keycloak.models.ClientSessionModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.services.managers.BruteForceProtector;
-import org.keycloak.services.managers.ClientSessionCode;
 
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriInfo;
@@ -22,24 +21,13 @@ import javax.ws.rs.core.UriInfo;
  */
 public interface AuthenticatorContext {
     EventBuilder getEvent();
+    EventBuilder newEvent();
 
     AuthenticationExecutionModel getExecution();
 
     void setExecution(AuthenticationExecutionModel execution);
 
-    AuthenticatorModel getAuthenticatorModel();
-
-    void setAuthenticatorModel(AuthenticatorModel model);
-
-    String getAction();
-
-    Authenticator getAuthenticator();
-
-    void setAuthenticator(Authenticator authenticator);
-
-    AuthenticationProcessor.Status getStatus();
-
-    UserModel getUser();
+     UserModel getUser();
 
     void setUser(UserModel user);
 
@@ -57,15 +45,6 @@ public interface AuthenticatorContext {
     HttpRequest getHttpRequest();
     BruteForceProtector getProtector();
 
-    void success();
-    void failure(AuthenticationProcessor.Error error);
-    void failure(AuthenticationProcessor.Error error, Response response);
-    void challenge(Response challenge);
-
-    void forceChallenge(Response challenge);
-
-    void failureChallenge(AuthenticationProcessor.Error error, Response challenge);
-    void attempted();
 
     /**
      * This could be an error message forwarded from brokering when the broker failed authentication
@@ -80,4 +59,29 @@ public interface AuthenticatorContext {
      * @return
      */
     String generateAccessCode();
+
+    AuthenticatorConfigModel getAuthenticatorConfig();
+
+    Authenticator getAuthenticator();
+
+    void setAuthenticator(Authenticator authenticator);
+
+    AuthenticationProcessor.Status getStatus();
+
+    AuthenticationExecutionModel.Requirement getCategoryRequirementFromCurrentFlow(String authenticatorCategory);
+
+    void success();
+    void failure(AuthenticationProcessor.Error error);
+    void failure(AuthenticationProcessor.Error error, Response response);
+    void challenge(Response challenge);
+
+    void forceChallenge(Response challenge);
+
+    void failureChallenge(AuthenticationProcessor.Error error, Response challenge);
+    void attempted();
+
+
+    Response getChallenge();
+
+    AuthenticationProcessor.Error getError();
 }

@@ -19,8 +19,8 @@
                     </div>
 
                     <div class="pull-right" data-ng-show="access.manageRealm">
-                        <a class="btn btn-primary" href="#/create/client/{{realm.realm}}">Create</a>
-                        <a class="btn btn-primary" href="#/import/client/{{realm.realm}}" data-ng-show="importButton">Import</a>
+                        <a class="btn btn-default" href="#/create/client/{{realm.realm}}">Create</a>
+                        <a class="btn btn-default" href="#/import/client/{{realm.realm}}" data-ng-show="importButton">Import</a>
                     </div>
                 </div>
             </th>
@@ -36,7 +36,7 @@
             <td><a href="#/realms/{{realm.realm}}/clients/{{client.id}}">{{client.clientId}}</a></td>
             <td>{{client.enabled}}</td>
             <td ng-class="{'text-muted': !client.baseUrl}">
-                <a href="{{client.baseUrl}}" data-ng-show="client.baseUrl">{{client.baseUrl}}</a>
+                <a href="{{client.baseUrl}}" target="_blank" data-ng-show="client.baseUrl">{{client.baseUrl}}</a>
                 <span data-ng-hide="client.baseUrl">Not defined</span>
         </tr>
         <tr data-ng-show="(clients | filter:search).length == 0">

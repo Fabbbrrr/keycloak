@@ -10,8 +10,8 @@ import org.keycloak.provider.Provider;
 * @version $Revision: 1 $
 */
 public interface Authenticator extends Provider {
-    boolean requiresUser();
     void authenticate(AuthenticatorContext context);
+    boolean requiresUser();
     boolean configuredFor(KeycloakSession session, RealmModel realm, UserModel user);
 
     /**
@@ -19,6 +19,8 @@ public interface Authenticator extends Provider {
      *
      */
     void setRequiredActions(KeycloakSession session, RealmModel realm, UserModel user);
+
+    void action(AuthenticatorContext context);
 
 
 }

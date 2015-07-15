@@ -1,11 +1,14 @@
 package org.keycloak.authentication.authenticators;
 
+import org.jboss.logging.Logger;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.authentication.AuthenticationProcessor;
+import org.keycloak.authentication.Authenticator;
 import org.keycloak.authentication.AuthenticatorContext;
 import org.keycloak.events.Details;
 import org.keycloak.events.Errors;
 import org.keycloak.login.LoginFormsProvider;
+import org.keycloak.models.ModelDuplicateException;
 import org.keycloak.models.UserCredentialModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.utils.KeycloakModelUtils;
@@ -24,20 +27,27 @@ import java.util.List;
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
  * @version $Revision: 1 $
  */
-public class AbstractFormAuthenticator {
+public abstract class AbstractFormAuthenticator implements Authenticator {
 
-    public static final String LOGIN_FORM_ACTION = "login_form";
+    private static final Logger logger = Logger.getLogger(AbstractFormAuthenticator.class);
+
     public static final String REGISTRATION_FORM_ACTION = "registration_form";
-    public static final String ACTION = "action";
-    public static final String FORM_USERNAME = "FORM_USERNAME";
+    public static final String EXECUTION = "execution";
+    public static final String ATTEMPTED_USERNAME = "ATTEMPTED_USERNAME";
 
-    protected boolean isAction(AuthenticatorContext context, String action) {
-        return action.equals(context.getAction());
+    @Override
+    public void action(AuthenticatorContext context) {
+
+    }
+
+    @Override
+    public void close() {
+
     }
 
     protected LoginFormsProvider loginForm(AuthenticatorContext context) {
         String accessCode = context.generateAccessCode();
-        URI action = getActionUrl(context, accessCode, LOGIN_FORM_ACTION);
+        URI action = getActionUrl(context, accessCode);
         LoginFormsProvider provider = context.getSession().getProvider(LoginFormsProvider.class)
                     .setUser(context.getUser())
                     .setActionUri(action)
@@ -48,10 +58,10 @@ public class AbstractFormAuthenticator {
         return provider;
     }
 
-    public static URI getActionUrl(AuthenticatorContext context, String code, String action) {
+    public URI getActionUrl(AuthenticatorContext context, String code) {
         return LoginActionsService.authenticationFormProcessor(context.getUriInfo())
                 .queryParam(OAuth2Constants.CODE, code)
-                .queryParam(ACTION, action)
+                .queryParam(EXECUTION, context.getExecution().getId())
                     .build(context.getRealm().getName());
     }
 
@@ -74,6 +84,14 @@ public class AbstractFormAuthenticator {
     protected Response invalidCredentials(AuthenticatorContext context) {
         return loginForm(context)
                 .setError(Messages.INVALID_USER).createLogin();
+    }
+
+    protected Response setDuplicateUserChallenge(AuthenticatorContext context, String eventError, String loginFormError, AuthenticationProcessor.Error authenticatorError) {
+        context.getEvent().error(eventError);
+        Response challengeResponse = loginForm(context)
+                .setError(loginFormError).createLogin();
+        context.failureChallenge(authenticatorError, challengeResponse);
+        return challengeResponse;
     }
 
     public boolean invalidUser(AuthenticatorContext context, UserModel user) {
@@ -111,14 +129,32 @@ public class AbstractFormAuthenticator {
             return false;
         }
         context.getEvent().detail(Details.USERNAME, username);
-        context.getClientSession().setNote(AbstractFormAuthenticator.FORM_USERNAME, username);
-        UserModel user = KeycloakModelUtils.findUserByNameOrEmail(context.getSession(), context.getRealm(), username);
+        context.getClientSession().setNote(AbstractFormAuthenticator.ATTEMPTED_USERNAME, username);
+
+        UserModel user = null;
+        try {
+            user = KeycloakModelUtils.findUserByNameOrEmail(context.getSession(), context.getRealm(), username);
+        } catch (ModelDuplicateException mde) {
+            logger.error(mde.getMessage(), mde);
+
+            // Could happen during federation import
+            if (mde.getDuplicateFieldName() != null && mde.getDuplicateFieldName().equals(UserModel.EMAIL)) {
+                setDuplicateUserChallenge(context, Errors.EMAIL_IN_USE, Messages.EMAIL_EXISTS, AuthenticationProcessor.Error.INVALID_USER);
+            } else {
+                setDuplicateUserChallenge(context, Errors.USERNAME_IN_USE, Messages.USERNAME_EXISTS, AuthenticationProcessor.Error.INVALID_USER);
+            }
+
+            return false;
+        }
+
         if (invalidUser(context, user)) return false;
         String rememberMe = inputData.getFirst("rememberMe");
         boolean remember = rememberMe != null && rememberMe.equalsIgnoreCase("on");
         if (remember) {
             context.getClientSession().setNote(Details.REMEMBER_ME, "true");
             context.getEvent().detail(Details.REMEMBER_ME, "true");
+        } else {
+            context.getClientSession().removeNote(Details.REMEMBER_ME);
         }
         context.setUser(user);
         return true;

@@ -14,6 +14,7 @@ import org.keycloak.util.reflections.Types;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -87,10 +88,7 @@ public class BasicDBObjectMapper<S> implements Mapper<BasicDBObject, S> {
             ParameterizedType parameterized = (ParameterizedType) type;
             Type[] genericTypeArguments = parameterized.getActualTypeArguments();
 
-            List<Class<?>> genericTypes = new ArrayList<Class<?>>();
-            for (Type genericType : genericTypeArguments) {
-                genericTypes.add((Class<?>)genericType);
-            }
+            List<Type> genericTypes = Arrays.asList(genericTypeArguments);
 
             Class<?> expectedReturnType = (Class<?>)parameterized.getRawType();
             context = new MapperContext<Object, Object>(valueFromDB, expectedReturnType, genericTypes);

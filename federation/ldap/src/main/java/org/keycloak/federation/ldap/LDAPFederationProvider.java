@@ -6,14 +6,16 @@ import org.keycloak.federation.kerberos.impl.SPNEGOAuthenticator;
 import org.keycloak.federation.ldap.idm.model.LDAPObject;
 import org.keycloak.federation.ldap.idm.query.Condition;
 import org.keycloak.federation.ldap.idm.query.QueryParameter;
-import org.keycloak.federation.ldap.idm.query.internal.LDAPIdentityQuery;
+import org.keycloak.federation.ldap.idm.query.internal.LDAPQuery;
 import org.keycloak.federation.ldap.idm.query.internal.LDAPQueryConditionsBuilder;
 import org.keycloak.federation.ldap.idm.store.ldap.LDAPIdentityStore;
 import org.keycloak.federation.ldap.kerberos.LDAPProviderKerberosConfig;
 import org.keycloak.federation.ldap.mappers.LDAPFederationMapper;
 import org.keycloak.models.CredentialValidationOutput;
 import org.keycloak.models.KeycloakSession;
+import org.keycloak.models.KeycloakSessionTask;
 import org.keycloak.models.LDAPConstants;
+import org.keycloak.models.ModelDuplicateException;
 import org.keycloak.models.ModelException;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RoleModel;
@@ -26,6 +28,7 @@ import org.keycloak.models.UserFederationProviderModel;
 import org.keycloak.models.UserFederationSyncResult;
 import org.keycloak.models.UserModel;
 import org.keycloak.constants.KerberosConstants;
+import org.keycloak.models.utils.KeycloakModelUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -51,7 +54,7 @@ public class LDAPFederationProvider implements UserFederationProvider {
     protected EditMode editMode;
     protected LDAPProviderKerberosConfig kerberosConfig;
 
-    protected final Set<String> supportedCredentialTypes = new HashSet<String>();
+    protected final Set<String> supportedCredentialTypes = new HashSet<>();
 
     public LDAPFederationProvider(LDAPFederationProviderFactory factory, KeycloakSession session, UserFederationProviderModel model, LDAPIdentityStore ldapIdentityStore) {
         this.factory = factory;
@@ -145,8 +148,8 @@ public class LDAPFederationProvider implements UserFederationProvider {
         if (!synchronizeRegistrations()) throw new IllegalStateException("Registration is not supported by this ldap server");
 
         LDAPObject ldapObject = LDAPUtils.addUserToLDAP(this, realm, user);
-        user.setAttribute(LDAPConstants.LDAP_ID, ldapObject.getUuid());
-        user.setAttribute(LDAPConstants.LDAP_ENTRY_DN, ldapObject.getDn().toString());
+        user.setSingleAttribute(LDAPConstants.LDAP_ID, ldapObject.getUuid());
+        user.setSingleAttribute(LDAPConstants.LDAP_ENTRY_DN, ldapObject.getDn().toString());
 
         return proxy(realm, user, ldapObject);
     }
@@ -176,7 +179,7 @@ public class LDAPFederationProvider implements UserFederationProvider {
         for (LDAPObject ldapUser : ldapUsers) {
             String ldapUsername = LDAPUtils.getUsername(ldapUser, this.ldapIdentityStore.getConfig());
             if (session.userStorage().getUserByUsername(ldapUsername, realm) == null) {
-                UserModel imported = importUserFromLDAP(realm, ldapUser);
+                UserModel imported = importUserFromLDAP(session, realm, ldapUser);
                 searchResults.add(imported);
             }
         }
@@ -202,7 +205,7 @@ public class LDAPFederationProvider implements UserFederationProvider {
         }
 
         if (attributes.containsKey(FIRST_NAME) || attributes.containsKey(LAST_NAME)) {
-            LDAPIdentityQuery ldapQuery = LDAPUtils.createQueryForUserSearch(this, realm);
+            LDAPQuery ldapQuery = LDAPUtils.createQueryForUserSearch(this, realm);
             LDAPQueryConditionsBuilder conditionsBuilder = new LDAPQueryConditionsBuilder();
 
             // Mapper should replace parameter with correct LDAP mapped attributes
@@ -229,10 +232,10 @@ public class LDAPFederationProvider implements UserFederationProvider {
         if (ldapUser == null) {
             return null;
         }
-        if (ldapUser.getUuid().equals(local.getAttribute(LDAPConstants.LDAP_ID))) {
+        if (ldapUser.getUuid().equals(local.getFirstAttribute(LDAPConstants.LDAP_ID))) {
             return ldapUser;
         } else {
-            logger.warnf("LDAP User invalid. ID doesn't match. ID from LDAP [%s], ID from local DB: [%s]", ldapUser.getUuid(), local.getAttribute(LDAPConstants.LDAP_ID));
+            logger.warnf("LDAP User invalid. ID doesn't match. ID from LDAP [%s], LDAP ID from local DB: [%s]", ldapUser.getUuid(), local.getFirstAttribute(LDAPConstants.LDAP_ID));
             return null;
         }
     }
@@ -249,10 +252,10 @@ public class LDAPFederationProvider implements UserFederationProvider {
             return null;
         }
 
-        return importUserFromLDAP(realm, ldapUser);
+        return importUserFromLDAP(session, realm, ldapUser);
     }
 
-    protected UserModel importUserFromLDAP(RealmModel realm, LDAPObject ldapUser) {
+    protected UserModel importUserFromLDAP(KeycloakSession session, RealmModel realm, LDAPObject ldapUser) {
         String ldapUsername = LDAPUtils.getUsername(ldapUser, ldapIdentityStore.getConfig());
 
         if (ldapUsername == null) {
@@ -271,8 +274,8 @@ public class LDAPFederationProvider implements UserFederationProvider {
 
         String userDN = ldapUser.getDn().toString();
         imported.setFederationLink(model.getId());
-        imported.setAttribute(LDAPConstants.LDAP_ID, ldapUser.getUuid());
-        imported.setAttribute(LDAPConstants.LDAP_ENTRY_DN, userDN);
+        imported.setSingleAttribute(LDAPConstants.LDAP_ID, ldapUser.getUuid());
+        imported.setSingleAttribute(LDAPConstants.LDAP_ENTRY_DN, userDN);
 
         logger.debugf("Imported new user from LDAP to Keycloak DB. Username: [%s], Email: [%s], LDAP_ID: [%s], LDAP Entry DN: [%s]", imported.getUsername(), imported.getEmail(),
                 ldapUser.getUuid(), userDN);
@@ -280,7 +283,7 @@ public class LDAPFederationProvider implements UserFederationProvider {
     }
 
     protected LDAPObject queryByEmail(RealmModel realm, String email) {
-        LDAPIdentityQuery ldapQuery = LDAPUtils.createQueryForUserSearch(this, realm);
+        LDAPQuery ldapQuery = LDAPUtils.createQueryForUserSearch(this, realm);
         LDAPQueryConditionsBuilder conditionsBuilder = new LDAPQueryConditionsBuilder();
 
         // Mapper should replace "email" in parameter name with correct LDAP mapped attribute
@@ -298,7 +301,7 @@ public class LDAPFederationProvider implements UserFederationProvider {
             return null;
         }
 
-        return importUserFromLDAP(realm, ldapUser);
+        return importUserFromLDAP(session, realm, ldapUser);
     }
 
     @Override
@@ -383,38 +386,6 @@ public class LDAPFederationProvider implements UserFederationProvider {
     public void close() {
     }
 
-    protected UserFederationSyncResult importLDAPUsers(RealmModel realm, List<LDAPObject> ldapUsers, UserFederationProviderModel fedModel) {
-        UserFederationSyncResult syncResult = new UserFederationSyncResult();
-
-        for (LDAPObject ldapUser : ldapUsers) {
-            String username = LDAPUtils.getUsername(ldapUser, ldapIdentityStore.getConfig());
-            UserModel currentUser = session.userStorage().getUserByUsername(username, realm);
-
-            if (currentUser == null) {
-                // Add new user to Keycloak
-                importUserFromLDAP(realm, ldapUser);
-                syncResult.increaseAdded();
-            } else {
-                if ((fedModel.getId().equals(currentUser.getFederationLink())) && (ldapUser.getUuid().equals(currentUser.getAttribute(LDAPConstants.LDAP_ID)))) {
-
-                    // Update keycloak user
-                    Set<UserFederationMapperModel> federationMappers = realm.getUserFederationMappersByFederationProvider(model.getId());
-                    for (UserFederationMapperModel mapperModel : federationMappers) {
-                        LDAPFederationMapper ldapMapper = getMapper(mapperModel);
-                        ldapMapper.onImportUserFromLDAP(mapperModel, this, ldapUser, currentUser, realm, false);
-                    }
-
-                    logger.debugf("Updated user from LDAP: %s", currentUser.getUsername());
-                    syncResult.increaseUpdated();
-                } else {
-                    logger.warnf("User '%s' is not updated during sync as he is not linked to federation provider '%s'", username, fedModel.getDisplayName());
-                }
-            }
-        }
-
-        return syncResult;
-    }
-
     /**
      * Called after successful kerberos authentication
      *
@@ -435,7 +406,7 @@ public class LDAPFederationProvider implements UserFederationProvider {
                     return proxy(realm, user, ldapObject);
                 } else {
                     logger.warnf("User with username [%s] aready exists and is linked to provider [%s] but is not valid. Stale LDAP_ID on local user is: %s",
-                            username,  model.getDisplayName(), user.getAttribute(LDAPConstants.LDAP_ID));
+                            username,  model.getDisplayName(), user.getFirstAttribute(LDAPConstants.LDAP_ID));
                     logger.warn("Will re-create user");
                     session.userStorage().removeUser(realm, user);
                 }
@@ -448,7 +419,7 @@ public class LDAPFederationProvider implements UserFederationProvider {
     }
 
     public LDAPObject loadLDAPUserByUsername(RealmModel realm, String username) {
-        LDAPIdentityQuery ldapQuery = LDAPUtils.createQueryForUserSearch(this, realm);
+        LDAPQuery ldapQuery = LDAPUtils.createQueryForUserSearch(this, realm);
         LDAPQueryConditionsBuilder conditionsBuilder = new LDAPQueryConditionsBuilder();
 
         String usernameMappedAttribute = this.ldapIdentityStore.getConfig().getUsernameLdapAttribute();

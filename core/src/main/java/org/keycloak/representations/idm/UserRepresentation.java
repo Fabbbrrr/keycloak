@@ -1,9 +1,13 @@
 package org.keycloak.representations.idm;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.codehaus.jackson.annotate.JsonIgnore;
+import org.keycloak.util.MultivaluedHashMap;
 
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
@@ -13,6 +17,7 @@ public class UserRepresentation {
 
     protected String self; // link
     protected String id;
+    protected Long createdTimestamp;
     protected String username;
     protected boolean enabled;
     protected boolean totp;
@@ -21,7 +26,9 @@ public class UserRepresentation {
     protected String lastName;
     protected String email;
     protected String federationLink;
-    protected Map<String, String> attributes;
+
+    // Currently there is Map<String, List<String>> but for backwards compatibility, we also need to support Map<String, String>
+    protected Map<String, Object> attributes;
     protected List<CredentialRepresentation> credentials;
     protected List<String> requiredActions;
     protected List<FederatedIdentityRepresentation> federatedIdentities;
@@ -48,6 +55,14 @@ public class UserRepresentation {
 
     public void setId(String id) {
         this.id = id;
+    }
+
+    public Long getCreatedTimestamp() {
+        return createdTimestamp;
+    }
+
+    public void setCreatedTimestamp(Long createdTimestamp) {
+        this.createdTimestamp = createdTimestamp;
     }
 
     public String getFirstName() {
@@ -106,17 +121,23 @@ public class UserRepresentation {
         this.emailVerified = emailVerified;
     }
 
-    public Map<String, String> getAttributes() {
+    public Map<String, Object> getAttributes() {
         return attributes;
     }
 
-    public void setAttributes(Map<String, String> attributes) {
+    // This method can be removed once we can remove backwards compatibility with Keycloak 1.3 (then getAttributes() can be changed to return Map<String, List<String>> )
+    @JsonIgnore
+    public Map<String, List<String>> getAttributesAsListValues() {
+        return (Map) attributes;
+    }
+
+    public void setAttributes(Map<String, Object> attributes) {
         this.attributes = attributes;
     }
 
-    public UserRepresentation attribute(String name, String value) {
-        if (this.attributes == null) attributes = new HashMap<String, String>();
-        attributes.put(name, value);
+    public UserRepresentation singleAttribute(String name, String value) {
+        if (this.attributes == null) attributes = new HashMap<>();
+        attributes.put(name, Arrays.asList(value));
         return this;
     }
 

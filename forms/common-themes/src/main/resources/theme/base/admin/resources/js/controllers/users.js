@@ -129,10 +129,66 @@ module.controller('UserSessionsCtrl', function($scope, realm, user, sessions, Us
     }
 });
 
-module.controller('UserFederatedIdentityCtrl', function($scope, realm, user, federatedIdentities) {
+module.controller('UserFederatedIdentityCtrl', function($scope, $location, realm, user, federatedIdentities, UserFederatedIdentity, Notifications, Dialog) {
     $scope.realm = realm;
     $scope.user = user;
     $scope.federatedIdentities = federatedIdentities;
+
+    $scope.hasAnyProvidersToCreate = function() {
+        return realm.identityProviders.length - $scope.federatedIdentities.length > 0;
+    }
+
+    $scope.removeProviderLink = function(providerLink) {
+
+        console.log("Removing provider link: " + providerLink.identityProvider);
+
+        Dialog.confirmDelete(providerLink.identityProvider, 'Identity Provider Link', function() {
+            UserFederatedIdentity.remove({ realm: realm.realm, user: user.id, provider: providerLink.identityProvider }, function() {
+                Notifications.success("The provider link has been deleted.");
+                var indexToRemove = $scope.federatedIdentities.indexOf(providerLink);
+                $scope.federatedIdentities.splice(indexToRemove, 1);
+            });
+        });
+    }
+});
+
+module.controller('UserFederatedIdentityAddCtrl', function($scope, $location, realm, user, federatedIdentities, UserFederatedIdentity, Notifications) {
+    $scope.realm = realm;
+    $scope.user = user;
+    $scope.federatedIdentity = {};
+
+    var getAvailableProvidersToCreate = function() {
+        var realmProviders = [];
+        for (var i=0 ; i<realm.identityProviders.length ; i++) {
+            var providerAlias = realm.identityProviders[i].alias;
+            realmProviders.push(providerAlias);
+        };
+
+        for (var i=0 ; i<federatedIdentities.length ; i++) {
+            var providerAlias = federatedIdentities[i].identityProvider;
+            var index = realmProviders.indexOf(providerAlias);
+            realmProviders.splice(index, 1);
+        }
+
+        return realmProviders;
+    }
+    $scope.availableProvidersToCreate = getAvailableProvidersToCreate();
+
+    $scope.save = function() {
+        UserFederatedIdentity.save({
+            realm : realm.realm,
+            user: user.id,
+            provider: $scope.federatedIdentity.identityProvider
+        }, $scope.federatedIdentity, function(data, headers) {
+            $location.url("/realms/" + realm.realm + '/users/' + $scope.user.id + '/federated-identity');
+            Notifications.success("Provider link has been created.");
+        });
+    };
+
+    $scope.cancel = function() {
+         $location.url("/realms/" + realm.realm + '/users/' + $scope.user.id + '/federated-identity');
+    };
+
 });
 
 module.controller('UserConsentsCtrl', function($scope, realm, user, userConsents, UserConsents, Notifications) {
@@ -154,7 +210,7 @@ module.controller('UserConsentsCtrl', function($scope, realm, user, userConsents
 });
 
 
-module.controller('UserListCtrl', function($scope, realm, User) {
+module.controller('UserListCtrl', function($scope, realm, User, UserImpersonation) {
     $scope.realm = realm;
     $scope.page = 0;
 
@@ -163,6 +219,16 @@ module.controller('UserListCtrl', function($scope, realm, User) {
         max : 5,
         first : 0
     }
+
+    $scope.impersonate = function(userId) {
+        UserImpersonation.save({realm : realm.realm, user: userId}, function (data) {
+            if (data.sameRealm) {
+                window.location = data.redirect;
+            } else {
+                window.open(data.redirect, "_blank");
+            }
+        });
+    };
 
     $scope.firstPage = function() {
         $scope.query.first = 0;
@@ -195,7 +261,7 @@ module.controller('UserListCtrl', function($scope, realm, User) {
 
 
 
-module.controller('UserDetailCtrl', function($scope, realm, user, User, UserFederationInstances, RequiredActions, $location, Dialog, Notifications) {
+module.controller('UserDetailCtrl', function($scope, realm, user, User, UserFederationInstances, UserImpersonation, RequiredActions, $location, Dialog, Notifications) {
     $scope.realm = realm;
     $scope.create = !user.id;
     $scope.editUsername = $scope.create || $scope.realm.editUsernameAllowed;
@@ -206,7 +272,19 @@ module.controller('UserDetailCtrl', function($scope, realm, user, User, UserFede
         if (!user.attributes) {
             user.attributes = {}
         }
+        convertAttributeValuesToString(user);
+
+
         $scope.user = angular.copy(user);
+        $scope.impersonate = function() {
+            UserImpersonation.save({realm : realm.realm, user: $scope.user.id}, function (data) {
+                if (data.sameRealm) {
+                    window.location = data.redirect;
+                } else {
+                    window.open(data.redirect, "_blank");
+                }
+            });
+        };
         if(user.federationLink) {
             console.log("federationLink is not null");
             UserFederationInstances.get({realm : realm.realm, instance: user.federationLink}, function(link) {
@@ -252,13 +330,15 @@ module.controller('UserDetailCtrl', function($scope, realm, user, User, UserFede
     }, true);
 
     $scope.save = function() {
+        convertAttributeValuesToLists();
+
         if ($scope.create) {
             User.save({
                 realm: realm.realm
             }, $scope.user, function (data, headers) {
                 $scope.changed = false;
+                convertAttributeValuesToString($scope.user);
                 user = angular.copy($scope.user);
-
                 var l = headers().location;
 
                 console.debug("Location == " + l);
@@ -275,11 +355,32 @@ module.controller('UserDetailCtrl', function($scope, realm, user, User, UserFede
                 userId: $scope.user.id
             }, $scope.user, function () {
                 $scope.changed = false;
+                convertAttributeValuesToString($scope.user);
                 user = angular.copy($scope.user);
                 Notifications.success("Your changes have been saved to the user.");
             });
         }
     };
+
+    function convertAttributeValuesToLists() {
+        var attrs = $scope.user.attributes;
+        for (var attribute in attrs) {
+            if (typeof attrs[attribute] === "string") {
+                var attrVals = attrs[attribute].split("##");
+                attrs[attribute] = attrVals;
+            }
+        }
+    }
+
+    function convertAttributeValuesToString(user) {
+        var attrs = user.attributes;
+        for (var attribute in attrs) {
+            if (typeof attrs[attribute] === "object") {
+                var attrVals = attrs[attribute].join("##");
+                attrs[attribute] = attrVals;
+            }
+        }
+    }
 
     $scope.reset = function() {
         $scope.user = angular.copy(user);
@@ -781,7 +882,7 @@ module.controller('UserFederationMapperListCtrl', function($scope, $location, No
 
     $scope.hasAnyMapperTypes = false;
     for (var property in mapperTypes) {
-        if (!(property.startsWith('$'))) {
+        if (!(property.indexOf('$') === 0)) {
             $scope.hasAnyMapperTypes = true;
             break;
         }

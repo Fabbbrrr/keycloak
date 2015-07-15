@@ -9,6 +9,8 @@ import org.keycloak.models.UserSessionModel;
 import org.keycloak.models.sessions.mem.entities.ClientSessionEntity;
 import org.keycloak.models.sessions.mem.entities.UserSessionEntity;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -39,7 +41,9 @@ public class ClientSessionAdapter implements ClientSessionModel {
         return session.realms().getRealm(entity.getRealmId());
     }
 
-
+    public ClientSessionEntity getEntity() {
+        return entity;
+    }
 
     @Override
     public ClientModel getClient() {
@@ -135,6 +139,14 @@ public class ClientSessionAdapter implements ClientSessionModel {
     }
 
     @Override
+    public Map<String, String> getNotes() {
+        if (entity.getNotes() == null || entity.getNotes().isEmpty()) return Collections.emptyMap();
+        Map<String, String> copy = new HashMap<>();
+        copy.putAll(entity.getNotes());
+        return copy;
+   }
+
+    @Override
     public void setUserSessionNote(String name, String value) {
         entity.getUserSessionNotes().put(name, value);
     }
@@ -155,28 +167,34 @@ public class ClientSessionAdapter implements ClientSessionModel {
     }
 
     @Override
-    public Map<String, UserSessionModel.AuthenticatorStatus> getAuthenticators() {
+    public Map<String, ExecutionStatus> getExecutionStatus() {
         return entity.getAuthenticatorStatus();
     }
 
     @Override
-    public void setAuthenticatorStatus(String authenticator, UserSessionModel.AuthenticatorStatus status) {
+    public void setExecutionStatus(String authenticator, ExecutionStatus status) {
         entity.getAuthenticatorStatus().put(authenticator, status);
 
     }
 
     @Override
-    public void setAuthenticatorStatus(Map<String, UserSessionModel.AuthenticatorStatus> status) {
-        entity.setAuthenticatorStatus(status);
+    public void clearExecutionStatus() {
+        entity.getAuthenticatorStatus().clear();
+    }
+
+    @Override
+    public void clearUserSessionNotes() {
+        entity.getUserSessionNotes().clear();
     }
 
     @Override
     public UserModel getAuthenticatedUser() {
-        return session.users().getUserById(entity.getAuthUserId(), realm);    }
+        return entity.getAuthUserId() == null ? null : session.users().getUserById(entity.getAuthUserId(), realm);    }
 
     @Override
     public void setAuthenticatedUser(UserModel user) {
-        entity.setAuthUserId(user.getId());
+        if (user == null) entity.setAuthUserId(null);
+        else entity.setAuthUserId(user.getId());
 
     }
 }

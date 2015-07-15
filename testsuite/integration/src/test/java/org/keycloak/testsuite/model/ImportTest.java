@@ -117,6 +117,8 @@ public class ImportTest extends AbstractModelTest {
 
         // Test role mappings
         UserModel admin =  session.users().getUserByUsername("admin", realm);
+        // user without creation timestamp in import
+        Assert.assertNull(admin.getCreatedTimestamp());
         Set<RoleModel> allRoles = admin.getRoleMappings();
         Assert.assertEquals(3, allRoles.size());
         Assert.assertTrue(allRoles.contains(realm.getRole("admin")));
@@ -124,6 +126,8 @@ public class ImportTest extends AbstractModelTest {
         Assert.assertTrue(allRoles.contains(otherApp.getRole("otherapp-admin")));
 
         UserModel wburke =  session.users().getUserByUsername("wburke", realm);
+        // user with creation timestamp in import
+        Assert.assertEquals(new Long(123654), wburke.getCreatedTimestamp());
         allRoles = wburke.getRoleMappings();
         Assert.assertEquals(2, allRoles.size());
         Assert.assertFalse(allRoles.contains(realm.getRole("admin")));
@@ -132,6 +136,10 @@ public class ImportTest extends AbstractModelTest {
 
         Assert.assertEquals(0, wburke.getRealmRoleMappings().size());
 
+        UserModel loginclient = session.users().getUserByUsername("loginclient", realm);
+        // user with creation timestamp as string in import
+        Assert.assertEquals(new Long(123655), loginclient.getCreatedTimestamp());
+
         Set<RoleModel> realmRoles = admin.getRealmRoleMappings();
         Assert.assertEquals(1, realmRoles.size());
         Assert.assertEquals("admin", realmRoles.iterator().next().getName());
@@ -139,6 +147,22 @@ public class ImportTest extends AbstractModelTest {
         Set<RoleModel> appRoles = admin.getClientRoleMappings(application);
         Assert.assertEquals(1, appRoles.size());
         Assert.assertEquals("app-admin", appRoles.iterator().next().getName());
+
+        // Test attributes
+        Map<String, List<String>> attrs = wburke.getAttributes();
+        Assert.assertEquals(1, attrs.size());
+        List<String> attrVals = attrs.get("email");
+        Assert.assertEquals(1, attrVals.size());
+        Assert.assertEquals("bburke@redhat.com", attrVals.get(0));
+
+        attrs = admin.getAttributes();
+        Assert.assertEquals(2, attrs.size());
+        attrVals = attrs.get("key1");
+        Assert.assertEquals(1, attrVals.size());
+        Assert.assertEquals("val1", attrVals.get(0));
+        attrVals = attrs.get("key2");
+        Assert.assertEquals(2, attrVals.size());
+        Assert.assertTrue(attrVals.contains("val21") && attrVals.contains("val22"));
 
         // Test client
         ClientModel oauthClient = realm.getClientByClientId("oauthclient");

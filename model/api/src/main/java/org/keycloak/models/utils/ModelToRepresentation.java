@@ -31,6 +31,7 @@ import org.keycloak.representations.idm.UserFederationMapperRepresentation;
 import org.keycloak.representations.idm.UserFederationProviderRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.representations.idm.UserSessionRepresentation;
+import org.keycloak.util.MultivaluedHashMap;
 import org.keycloak.util.Time;
 
 import java.util.ArrayList;
@@ -50,6 +51,7 @@ public class ModelToRepresentation {
         UserRepresentation rep = new UserRepresentation();
         rep.setId(user.getId());
         rep.setUsername(user.getUsername());
+        rep.setCreatedTimestamp(user.getCreatedTimestamp());
         rep.setLastName(user.getLastName());
         rep.setFirstName(user.getFirstName());
         rep.setEmail(user.getEmail());
@@ -67,7 +69,7 @@ public class ModelToRepresentation {
         rep.setRequiredActions(reqActions);
 
         if (user.getAttributes() != null && !user.getAttributes().isEmpty()) {
-            Map<String, String> attrs = new HashMap<String, String>();
+            Map<String, Object> attrs = new HashMap<>();
             attrs.putAll(user.getAttributes());
             rep.setAttributes(attrs);
         }
@@ -228,7 +230,8 @@ public class ModelToRepresentation {
         rep.setId(session.getId());
         rep.setStart(Time.toMillis(session.getStarted()));
         rep.setLastAccess(Time.toMillis(session.getLastSessionRefresh()));
-        rep.setUser(session.getUser().getUsername());
+        rep.setUsername(session.getUser().getUsername());
+        rep.setUserId(session.getUser().getId());
         rep.setIpAddress(session.getIpAddress());
         for (ClientSessionModel clientSession : session.getClientSessions()) {
             ClientModel client = clientSession.getClient();

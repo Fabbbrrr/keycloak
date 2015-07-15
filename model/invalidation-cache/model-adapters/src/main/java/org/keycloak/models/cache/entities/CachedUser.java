@@ -4,6 +4,7 @@ import org.keycloak.models.RealmModel;
 import org.keycloak.models.RoleModel;
 import org.keycloak.models.UserCredentialValueModel;
 import org.keycloak.models.UserModel;
+import org.keycloak.util.MultivaluedHashMap;
 
 import java.io.Serializable;
 import java.util.HashMap;
@@ -21,6 +22,7 @@ public class CachedUser implements Serializable {
     private String id;
     private String realm;
     private String username;
+    private Long createdTimestamp;
     private String firstName;
     private String lastName;
     private String email;
@@ -29,15 +31,15 @@ public class CachedUser implements Serializable {
     private boolean enabled;
     private boolean totp;
     private String federationLink;
-    private Map<String, String> attributes = new HashMap<>();
+    private MultivaluedHashMap<String, String> attributes = new MultivaluedHashMap<>();
     private Set<String> requiredActions = new HashSet<>();
     private Set<String> roleMappings = new HashSet<String>();
-
 
     public CachedUser(RealmModel realm, UserModel user) {
         this.id = user.getId();
         this.realm = realm.getId();
         this.username = user.getUsername();
+        this.createdTimestamp = user.getCreatedTimestamp();
         this.firstName = user.getFirstName();
         this.lastName = user.getLastName();
         this.attributes.putAll(user.getAttributes());
@@ -63,6 +65,10 @@ public class CachedUser implements Serializable {
 
     public String getUsername() {
         return username;
+    }
+
+    public Long getCreatedTimestamp() {
+        return createdTimestamp;
     }
 
     public String getFirstName() {
@@ -93,7 +99,7 @@ public class CachedUser implements Serializable {
         return totp;
     }
 
-    public Map<String, String> getAttributes() {
+    public MultivaluedHashMap<String, String> getAttributes() {
         return attributes;
     }
 

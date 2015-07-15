@@ -12,6 +12,9 @@ public class AuthenticationFlowModel implements Serializable {
     private String id;
     private String alias;
     private String description;
+    private String providerId;
+    private boolean topLevel;
+    private boolean builtIn;
 
     public String getId() {
         return id;
@@ -35,5 +38,29 @@ public class AuthenticationFlowModel implements Serializable {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getProviderId() {
+        return providerId;
+    }
+
+    public void setProviderId(String providerId) {
+        this.providerId = providerId;
+    }
+
+    public boolean isTopLevel() {
+        return topLevel;
+    }
+
+    public void setTopLevel(boolean topLevel) {
+        this.topLevel = topLevel;
+    }
+
+    public boolean isBuiltIn() {
+        return builtIn;
+    }
+
+    public void setBuiltIn(boolean builtIn) {
+        this.builtIn = builtIn;
     }
 }

@@ -48,8 +48,8 @@
         <dom4j.version>1.6.1</dom4j.version>
         <xml-apis.version>1.4.01</xml-apis.version>
         <slf4j.version>1.7.7.jbossorg-1</slf4j.version>
-        <wildfly.version>9.0.0.CR2</wildfly.version>
-        <wildfly.core.version>1.0.0.CR6</wildfly.core.version>
+        <wildfly.version>9.0.0.Final</wildfly.version>
+        <wildfly.core.version>1.0.0.Final</wildfly.core.version>
         <wildfly.build-tools.version>1.0.0.Alpha8</wildfly.build-tools.version>
 
         <!-- this is EAP 6.4 alpha, publicly available -->
@@ -81,12 +81,14 @@
         <greenmail.version>1.3.1b</greenmail.version>
         <xmlsec.version>1.5.1</xmlsec.version>
 
+        <enforcer.plugin.version>1.4</enforcer.plugin.version>
         <jboss.as.plugin.version>7.5.Final</jboss.as.plugin.version>
         <wildfly.plugin.version>1.0.1.Final</wildfly.plugin.version>
         <minify.plugin.version>1.7.2</minify.plugin.version>
         <embedmongo.plugin.version>0.1.12</embedmongo.plugin.version>
         <jmeter.plugin.version>1.9.0</jmeter.plugin.version>
         <jmeter.analysis.plugin.version>1.0.4</jmeter.analysis.plugin.version>
+        <osgi.bundle.plugin.version>2.3.7</osgi.bundle.plugin.version>
     </properties>
 
     <url>http://keycloak.org</url>
@@ -153,6 +155,7 @@
         <module>testsuite</module>
         <module>timer</module>
         <module>export-import</module>
+        <module>util</module>
     </modules>
 
     <dependencyManagement>
@@ -162,16 +165,16 @@
                 <artifactId>relaxngDatatype</artifactId>
                 <version>${github.relaxng.version}</version>
             </dependency>
-        <dependency>
-            <groupId>com.sun.istack</groupId>
-            <artifactId>istack-commons-runtime</artifactId>
-            <version>${sun.istack.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.sun.istack</groupId>
-            <artifactId>istack-commons-tools</artifactId>
-            <version>${sun.istack.version}</version>
-        </dependency>
+            <dependency>
+                <groupId>com.sun.istack</groupId>
+                <artifactId>istack-commons-runtime</artifactId>
+                <version>${sun.istack.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.sun.istack</groupId>
+                <artifactId>istack-commons-tools</artifactId>
+                <version>${sun.istack.version}</version>
+            </dependency>
             <dependency>
                 <groupId>com.sun.xml.bind.external</groupId>
                 <artifactId>rngom</artifactId>
@@ -429,25 +432,21 @@
                 <groupId>org.apache.directory.server</groupId>
                 <artifactId>apacheds-core-annotations</artifactId>
                 <version>${apacheds.version}</version>
-                <scope>test</scope>
             </dependency>
             <dependency>
                 <groupId>org.apache.directory.server</groupId>
                 <artifactId>apacheds-interceptor-kerberos</artifactId>
                 <version>${apacheds.version}</version>
-                <scope>test</scope>
             </dependency>
             <dependency>
                 <groupId>org.apache.directory.server</groupId>
                 <artifactId>apacheds-server-annotations</artifactId>
                 <version>${apacheds.version}</version>
-                <scope>test</scope>
             </dependency>
             <dependency>
                 <groupId>org.apache.directory.api</groupId>
                 <artifactId>api-ldap-codec-standalone</artifactId>
                 <version>${apacheds.codec.version}</version>
-                <scope>test</scope>
             </dependency>
 
             <!-- Selenium -->
@@ -516,16 +515,16 @@
                 <version>${mysql.version}</version>
                 <scope>test</scope>
             </dependency>
-           <dependency>
-               <groupId>org.apache.httpcomponents</groupId>
-               <artifactId>httpclient</artifactId>
-               <version>${apache.httpcomponents.version}</version>
-           </dependency>
-           <dependency>
-               <groupId>org.apache.httpcomponents</groupId>
-               <artifactId>httpcore</artifactId>
-               <version>${apache.httpcomponents.httpcore.version}</version>
-           </dependency>
+            <dependency>
+                <groupId>org.apache.httpcomponents</groupId>
+                <artifactId>httpclient</artifactId>
+                <version>${apache.httpcomponents.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.httpcomponents</groupId>
+                <artifactId>httpcore</artifactId>
+                <version>${apache.httpcomponents.httpcore.version}</version>
+            </dependency>
             <dependency>
                 <groupId>org.apache.httpcomponents</groupId>
                 <artifactId>httpmime</artifactId>
@@ -885,7 +884,8 @@
                 <groupId>org.keycloak</groupId>
                 <artifactId>keycloak-wf9-server-subsystem</artifactId>
                 <version>${project.version}</version>
-            </dependency>            <dependency>
+            </dependency>            
+            <dependency>
                 <groupId>org.keycloak</groupId>
                 <artifactId>keycloak-subsystem</artifactId>
                 <version>${project.version}</version>
@@ -1119,6 +1119,11 @@
             </dependency>
             <dependency>
                 <groupId>org.keycloak</groupId>
+                <artifactId>keycloak-util-embedded-ldap</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.keycloak</groupId>
                 <artifactId>keycloak-docs-dist</artifactId>
                 <version>${project.version}</version>
                 <type>zip</type>
@@ -1126,12 +1131,6 @@
             <dependency>
                 <groupId>org.keycloak</groupId>
                 <artifactId>keycloak-examples-dist</artifactId>
-                <version>${project.version}</version>
-                <type>zip</type>
-            </dependency>
-            <dependency>
-                <groupId>org.keycloak</groupId>
-                <artifactId>keycloak-server-overlay</artifactId>
                 <version>${project.version}</version>
                 <type>zip</type>
             </dependency>
@@ -1162,8 +1161,8 @@
             <dependency>
                 <groupId>org.keycloak</groupId>
                 <artifactId>keycloak-server-feature-pack</artifactId>
-                    <version>${project.version}</version>
-                    <type>zip</type>
+                <version>${project.version}</version>
+                <type>zip</type>
             </dependency>
             <dependency>
                 <groupId>org.keycloak</groupId>
@@ -1187,6 +1186,7 @@
                 <version>${project.version}</version>
                 <classifier>classes</classifier>
             </dependency>
+
             <dependency>
                 <groupId>org.keycloak</groupId>
                 <artifactId>federation-properties-example</artifactId>
@@ -1288,7 +1288,32 @@
                     <groupId>org.wildfly.build</groupId>
                     <artifactId>wildfly-server-provisioning-maven-plugin</artifactId>
                     <version>${wildfly.build-tools.version}</version>
-                </plugin>                 
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-enforcer-plugin</artifactId>
+                    <version>${enforcer.plugin.version}</version>
+                    <executions>
+                        <execution>
+                            <id>enforce-maven</id>
+                            <goals>
+                                <goal>enforce</goal>
+                            </goals>
+                            <configuration>
+                                <rules>
+                                    <requireMavenVersion>
+                                        <version>3.1.1</version>
+                                    </requireMavenVersion>
+                                </rules>    
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.felix</groupId>
+                    <artifactId>maven-bundle-plugin</artifactId>
+                    <version>${osgi.bundle.plugin.version}</version>
+                </plugin>
             </plugins>
         </pluginManagement>
     </build>
