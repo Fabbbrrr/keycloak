@@ -14,6 +14,7 @@ import javax.ws.rs.ClientErrorException;
 import javax.ws.rs.core.Response;
 
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
@@ -27,9 +28,13 @@ import static org.junit.Assert.fail;
 public class UserTest extends AbstractClientTest {
 
     public String createUser() {
+        return createUser("user1", "user1@localhost");
+    }
+
+    public String createUser(String username, String email) {
         UserRepresentation user = new UserRepresentation();
-        user.setUsername("user1");
-        user.setEmail("user1@localhost");
+        user.setUsername(username);
+        user.setEmail(email);
 
         Response response = realm.users().create(user);
         String createdId = ApiUtil.getCreatedId(response);
@@ -114,6 +119,19 @@ public class UserTest extends AbstractClientTest {
         Response response = realm.users().create(user);
         assertEquals(409, response.getStatus());
         response.close();
+    }
+
+    @Test
+    public void createDuplicatedUser7() {
+        createUser("user1", "USer1@Localhost");
+
+        UserRepresentation user = new UserRepresentation();
+        user.setUsername("user2");
+        user.setEmail("user1@localhost");
+        Response response = realm.users().create(user);
+        assertEquals(409, response.getStatus());
+        response.close();
+
     }
     
     private void createUsers() {
@@ -342,9 +360,9 @@ public class UserTest extends AbstractClientTest {
         String id = ApiUtil.getCreatedId(response);
         response.close();
         UserResource user = realm.users().get(id);
-
+        List<String> actions = new LinkedList<>();
         try {
-            user.resetPasswordEmail();
+            user.executeActionsEmail(actions);
             fail("Expected failure");
         } catch (ClientErrorException e) {
             assertEquals(400, e.getResponse().getStatus());
@@ -357,7 +375,7 @@ public class UserTest extends AbstractClientTest {
             userRep.setEmail("user1@localhost");
             userRep.setEnabled(false);
             user.update(userRep);
-            user.resetPasswordEmail();
+            user.executeActionsEmail(actions);
             fail("Expected failure");
         } catch (ClientErrorException e) {
             assertEquals(400, e.getResponse().getStatus());
@@ -368,7 +386,7 @@ public class UserTest extends AbstractClientTest {
         try {
             userRep.setEnabled(true);
             user.update(userRep);
-            user.resetPasswordEmail("invalidClientId");
+            user.executeActionsEmail("invalidClientId", actions);
             fail("Expected failure");
         } catch (ClientErrorException e) {
             assertEquals(400, e.getResponse().getStatus());

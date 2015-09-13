@@ -43,8 +43,8 @@ public class UserModelDelegate implements UserModel {
     }
 
     @Override
-    public boolean isTotp() {
-        return delegate.isTotp();
+    public boolean isOtpEnabled() {
+        return delegate.isOtpEnabled();
     }
 
     @Override
@@ -148,8 +148,8 @@ public class UserModelDelegate implements UserModel {
     }
 
     @Override
-    public void setTotp(boolean totp) {
-        delegate.setTotp(totp);
+    public void setOtpEnabled(boolean totp) {
+        delegate.setOtpEnabled(totp);
     }
 
     @Override
@@ -205,6 +205,16 @@ public class UserModelDelegate implements UserModel {
     @Override
     public void setFederationLink(String link) {
         delegate.setFederationLink(link);
+    }
+
+    @Override
+    public String getServiceAccountClientLink() {
+        return delegate.getServiceAccountClientLink();
+    }
+
+    @Override
+    public void setServiceAccountClientLink(String clientInternalId) {
+        delegate.setServiceAccountClientLink(clientInternalId);
     }
 
     @Override

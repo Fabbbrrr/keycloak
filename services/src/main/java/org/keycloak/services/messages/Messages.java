@@ -26,6 +26,8 @@ package org.keycloak.services.messages;
  */
 public class Messages {
 
+    public static final String LOGIN_TIMEOUT = "loginTimeout";
+
     public static final String INVALID_USER = "invalidUserMessage";
 
     public static final String INVALID_EMAIL = "invalidEmailMessage";
@@ -109,6 +111,7 @@ public class Messages {
     public static final String UNSUPPORTED_NAME_ID_FORMAT = "unsupportedNameIdFormatMessage";
 
     public static final String REGISTRATION_NOT_ALLOWED = "registrationNotAllowedMessage";
+    public static final String RESET_CREDENTIAL_NOT_ALLOWED = "resetCredentialNotAllowedMessage";
 
     public static final String PERMISSION_NOT_APPROVED = "permissionNotApprovedMessage";
 
@@ -179,4 +182,6 @@ public class Messages {
     public static final String IDENTITY_PROVIDER_LOGIN_FAILURE = "identityProviderLoginFailure";
 
     public static final String FAILED_LOGOUT = "failedLogout";
+
+    public static final String CONSENT_DENIED="consentDenied";
 }

@@ -147,6 +147,14 @@ public class RegisterPage extends AbstractPage {
         return usernameInput.getAttribute("value");
     }
 
+    public String getPassword() {
+        return passwordInput.getAttribute("value");
+    }
+
+    public String getPasswordConfirm() {
+        return passwordConfirmInput.getAttribute("value");
+    }
+
     public boolean isCurrent() {
         return driver.getTitle().equals("Register with test");
     }

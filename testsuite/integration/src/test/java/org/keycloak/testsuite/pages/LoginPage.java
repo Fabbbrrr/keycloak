@@ -68,6 +68,10 @@ public class LoginPage extends AbstractPage {
     @FindBy(className = "feedback-warning")
     private WebElement loginWarningMessage;
 
+    @FindBy(className = "feedback-success")
+    private WebElement emailSuccessMessage;
+
+
     @FindBy(id = "kc-current-locale-link")
     private WebElement languageText;
 
@@ -91,8 +95,25 @@ public class LoginPage extends AbstractPage {
         submitButton.click();
     }
 
+    public void missingPassword(String username) {
+        usernameInput.clear();
+        usernameInput.sendKeys(username);
+        passwordInput.clear();
+        submitButton.click();
+
+    }
+    public void missingUsername() {
+        usernameInput.clear();
+        submitButton.click();
+
+    }
+
     public String getUsername() {
         return usernameInput.getAttribute("value");
+    }
+
+    public String getPassword() {
+        return passwordInput.getAttribute("value");
     }
 
     public void cancel() {
@@ -102,6 +123,11 @@ public class LoginPage extends AbstractPage {
     public String getError() {
         return loginErrorMessage != null ? loginErrorMessage.getText() : null;
     }
+
+    public String getSuccessMessage() {
+        return emailSuccessMessage != null ? emailSuccessMessage.getText() : null;
+    }
+
 
     public boolean isCurrent() {
         return driver.getTitle().equals("Log in to test") || driver.getTitle().equals("Anmeldung bei test");

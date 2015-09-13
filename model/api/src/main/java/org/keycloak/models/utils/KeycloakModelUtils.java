@@ -2,6 +2,7 @@ package org.keycloak.models.utils;
 
 import org.bouncycastle.openssl.PEMWriter;
 import org.keycloak.constants.KerberosConstants;
+import org.keycloak.constants.ServiceAccountConstants;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
@@ -15,6 +16,7 @@ import org.keycloak.models.UserCredentialModel;
 import org.keycloak.models.UserFederationMapperModel;
 import org.keycloak.models.UserFederationProviderModel;
 import org.keycloak.models.UserModel;
+import org.keycloak.representations.idm.CertificateRepresentation;
 import org.keycloak.util.CertificateUtils;
 import org.keycloak.util.PemUtils;
 
@@ -148,8 +150,7 @@ public final class KeycloakModelUtils {
         realm.setCertificate(certificate);
     }
 
-    public static void generateClientKeyPairCertificate(ClientModel client) {
-        String subject = client.getClientId();
+    public static CertificateRepresentation generateKeyPairCertificate(String subject) {
         KeyPair keyPair = null;
         try {
             KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
@@ -165,13 +166,12 @@ public final class KeycloakModelUtils {
             throw new RuntimeException(e);
         }
         String privateKeyPem = KeycloakModelUtils.getPemFromKey(keyPair.getPrivate());
-        String publicKeyPem = KeycloakModelUtils.getPemFromKey(keyPair.getPublic());
         String certPem = KeycloakModelUtils.getPemFromCertificate(certificate);
 
-        client.setAttribute(ClientModel.PRIVATE_KEY, privateKeyPem);
-        client.setAttribute(ClientModel.PUBLIC_KEY, publicKeyPem);
-        client.setAttribute(ClientModel.X509CERTIFICATE, certPem);
-
+        CertificateRepresentation rep = new CertificateRepresentation();
+        rep.setPrivateKey(privateKeyPem);
+        rep.setCertificate(certPem);
+        return rep;
     }
 
     public static UserCredentialModel generateSecret(ClientModel app) {
@@ -180,12 +180,17 @@ public final class KeycloakModelUtils {
         return secret;
     }
 
+    public static String getDefaultClientAuthenticatorType() {
+        return "client-secret";
+    }
+
     public static String generateCodeSecret() {
         return UUID.randomUUID().toString();
     }
 
     public static ClientModel createClient(RealmModel realm, String name) {
         ClientModel app = realm.addClient(name);
+        app.setClientAuthenticatorType(getDefaultClientAuthenticatorType());
         generateSecret(app);
         app.setFullScopeAllowed(true);
 
@@ -257,8 +262,8 @@ public final class KeycloakModelUtils {
         }
     }
 
-    public static String getMasterRealmAdminApplicationClientId(RealmModel realm) {
-        return realm.getName() + "-realm";
+    public static String getMasterRealmAdminApplicationClientId(String realmName) {
+        return realmName + "-realm";
     }
 
     /**
@@ -350,30 +355,9 @@ public final class KeycloakModelUtils {
         return mapperModel;
     }
 
-    /**
-     * Automatically add "kerberos" to required realm credentials if it's supported by saved provider
-     *
-     * @param realm
-     * @param model
-     * @return true if kerberos credentials were added
-     */
-    public static boolean checkKerberosCredential(RealmModel realm, UserFederationProviderModel model) {
-        String allowKerberosCfg = model.getConfig().get(KerberosConstants.ALLOW_KERBEROS_AUTHENTICATION);
-        if (Boolean.valueOf(allowKerberosCfg)) {
-            boolean found = false;
-            List<RequiredCredentialModel> currentCreds = realm.getRequiredCredentials();
-            for (RequiredCredentialModel cred : currentCreds) {
-                if (cred.getType().equals(UserCredentialModel.KERBEROS)) {
-                    found = true;
-                }
-            }
+    // END USER FEDERATION RELATED STUFF
 
-            if (!found) {
-                realm.addRequiredCredential(UserCredentialModel.KERBEROS);
-                return true;
-            }
-        }
-
-        return false;
+    public static String toLowerCaseSafe(String str) {
+        return str==null ? null : str.toLowerCase();
     }
 }

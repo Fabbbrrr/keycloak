@@ -4,6 +4,7 @@ import org.hibernate.ejb.AvailableSettings;
 import org.jboss.logging.Logger;
 import org.keycloak.Config;
 import org.keycloak.connections.jpa.updater.JpaUpdaterProvider;
+import org.keycloak.connections.jpa.util.JpaUtils;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 
@@ -13,10 +14,12 @@ import javax.persistence.EntityManagerFactory;
 import javax.persistence.Persistence;
 import javax.sql.DataSource;
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -29,6 +32,8 @@ public class DefaultJpaConnectionProviderFactory implements JpaConnectionProvide
     private volatile EntityManagerFactory emf;
 
     private Config.Scope config;
+    
+    private Map<String,String> operationalInfo;
 
     @Override
     public JpaConnectionProvider create(KeycloakSession session) {
@@ -104,7 +109,7 @@ public class DefaultJpaConnectionProviderFactory implements JpaConnectionProvide
 
                     String schema = config.get("schema");
                     if (schema != null) {
-                        properties.put("hibernate.default_schema", schema);
+                        properties.put(JpaUtils.HIBERNATE_DEFAULT_SCHEMA, schema);
                     }
 
                     if (databaseSchema != null) {
@@ -120,56 +125,73 @@ public class DefaultJpaConnectionProviderFactory implements JpaConnectionProvide
                     properties.put("hibernate.show_sql", config.getBoolean("showSql", false));
                     properties.put("hibernate.format_sql", config.getBoolean("formatSql", true));
 
-                    if (databaseSchema != null) {
-                        logger.trace("Updating database");
+                    connection = getConnection();
+                    try{ 
+	                    prepareOperationalInfo(connection);
+	                    
+	                    if (databaseSchema != null) {
+	                        logger.trace("Updating database");
+	
+	                        JpaUpdaterProvider updater = session.getProvider(JpaUpdaterProvider.class);
+	                        if (updater == null) {
+	                            throw new RuntimeException("Can't update database: JPA updater provider not found");
+	                        }
+	
+	                        if (databaseSchema.equals("update")) {
+	                            String currentVersion = null;
+	                            try {
+	                                ResultSet resultSet = connection.createStatement().executeQuery(updater.getCurrentVersionSql(schema));
+	                                if (resultSet.next()) {
+	                                    currentVersion = resultSet.getString(1);
+	                                }
+	                            } catch (SQLException e) {
+	                            }
+	
+	                            if (currentVersion == null || !JpaUpdaterProvider.LAST_VERSION.equals(currentVersion)) {
+	                                updater.update(session, connection, schema);
+	                            } else {
+	                                logger.debug("Database is up to date");
+	                            }
+	                        } else if (databaseSchema.equals("validate")) {
+	                            updater.validate(connection, schema);
+	                        } else {
+	                            throw new RuntimeException("Invalid value for databaseSchema: " + databaseSchema);
+	                        }
+	
+	                        logger.trace("Database update completed");
+	                    }
+	
+	                    logger.trace("Creating EntityManagerFactory");
+	                    emf = Persistence.createEntityManagerFactory(unitName, properties);
+	                    logger.trace("EntityManagerFactory created");
 
-                        JpaUpdaterProvider updater = session.getProvider(JpaUpdaterProvider.class);
-                        if (updater == null) {
-                            throw new RuntimeException("Can't update database: JPA updater provider not found");
-                        }
-
-                        connection = getConnection();
-
-                        if (databaseSchema.equals("update")) {
-                            String currentVersion = null;
-                            try {
-                                ResultSet resultSet = connection.createStatement().executeQuery(updater.getCurrentVersionSql(schema));
-                                if (resultSet.next()) {
-                                    currentVersion = resultSet.getString(1);
-                                }
-                            } catch (SQLException e) {
-                            }
-
-                            if (currentVersion == null || !JpaUpdaterProvider.LAST_VERSION.equals(currentVersion)) {
-                                updater.update(session, connection, schema);
-                            } else {
-                                logger.debug("Database is up to date");
-                            }
-                        } else if (databaseSchema.equals("validate")) {
-                            updater.validate(connection, schema);
-                        } else {
-                            throw new RuntimeException("Invalid value for databaseSchema: " + databaseSchema);
-                        }
-
-                        logger.trace("Database update completed");
-                    }
-
-                    logger.trace("Creating EntityManagerFactory");
-                    emf = Persistence.createEntityManagerFactory(unitName, properties);
-                    logger.trace("EntityManagerFactory created");
-
-                    // Close after creating EntityManagerFactory to prevent in-mem databases from closing
-                    if (connection != null) {
-                        try {
-                            connection.close();
-                        } catch (SQLException e) {
-                            logger.warn(e);
-                        }
+                    } finally {
+	                    // Close after creating EntityManagerFactory to prevent in-mem databases from closing
+	                    if (connection != null) {
+	                        try {
+	                            connection.close();
+	                        } catch (SQLException e) {
+	                            logger.warn(e);
+	                        }
+	                    }
                     }
                 }
             }
         }
     }
+    
+    protected void prepareOperationalInfo(Connection connection) {
+  		try {
+  			operationalInfo = new LinkedHashMap<>();
+  			DatabaseMetaData md = connection.getMetaData();
+  			operationalInfo.put("databaseUrl",md.getURL());
+  			operationalInfo.put("databaseUser", md.getUserName());
+  			operationalInfo.put("databaseProduct", md.getDatabaseProductName() + " " + md.getDatabaseProductVersion());
+  			operationalInfo.put("databaseDriver", md.getDriverName() + " " + md.getDriverVersion());
+  		} catch (SQLException e) {
+  			logger.warn("Unable to prepare operational info due database exception: " + e.getMessage());
+  		}
+  	}
 
     private Connection getConnection() {
         try {
@@ -185,5 +207,10 @@ public class DefaultJpaConnectionProviderFactory implements JpaConnectionProvide
             throw new RuntimeException("Failed to connect to database", e);
         }
     }
+    
+    @Override
+  	public Map<String,String> getOperationalInfo() {
+  		return operationalInfo;
+  	}
 
 }

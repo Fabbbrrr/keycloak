@@ -46,16 +46,6 @@ public class ExportUtils {
     public static RealmRepresentation exportRealm(KeycloakSession session, RealmModel realm, boolean includeUsers) {
         RealmRepresentation rep = ModelToRepresentation.toRepresentation(realm, true);
 
-        // Audit
-        rep.setEventsEnabled(realm.isEventsEnabled());
-        if (realm.getEventsExpiration() != 0) {
-            rep.setEventsExpiration(realm.getEventsExpiration());
-        }
-
-        if (realm.getEventsListeners() != null) {
-            rep.setEventsListeners(new LinkedList<String>(realm.getEventsListeners()));
-        }
-
         // Clients
         List<ClientModel> clients = realm.getClients();
         List<ClientRepresentation> clientReps = new ArrayList<>();
@@ -133,7 +123,7 @@ public class ExportUtils {
 
         // Finally users if needed
         if (includeUsers) {
-            List<UserModel> allUsers = session.users().getUsers(realm);
+            List<UserModel> allUsers = session.users().getUsers(realm, true);
             List<UserRepresentation> users = new ArrayList<UserRepresentation>();
             for (UserModel user : allUsers) {
                 UserRepresentation userRep = exportUser(session, realm, user);
@@ -296,6 +286,15 @@ public class ExportUtils {
             userRep.setClientConsents(consentReps);
         }
 
+        // Service account
+        if (user.getServiceAccountClientLink() != null) {
+            String clientInternalId = user.getServiceAccountClientLink();
+            ClientModel client = realm.getClientById(clientInternalId);
+            if (client != null) {
+                userRep.setServiceAccountClientId(client.getClientId());
+            }
+        }
+
         return userRep;
     }
 
@@ -314,6 +313,9 @@ public class ExportUtils {
         credRep.setHashedSaltedValue(userCred.getValue());
         if (userCred.getSalt() != null) credRep.setSalt(Base64.encodeBytes(userCred.getSalt()));
         credRep.setHashIterations(userCred.getHashIterations());
+        credRep.setCounter(userCred.getCounter());
+        credRep.setAlgorithm(userCred.getAlgorithm());
+        credRep.setDigits(userCred.getDigits());
         return credRep;
     }
 

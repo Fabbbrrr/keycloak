@@ -9,6 +9,7 @@
 
     <xsl:param name="config"/>
     <xsl:variable name="log" select="'urn:jboss:domain:logging:'"/>
+    <xsl:variable name="inf" select="'urn:jboss:domain:infinispan:'"/>
 
     <xsl:output method="xml" version="1.0" encoding="UTF-8" indent="yes" xalan:indent-amount="4" standalone="no"/>
     <xsl:strip-space elements="*"/>
@@ -44,19 +45,15 @@
         </xsl:copy>
     </xsl:template>
 
-    <xsl:template match="//sec:security-domains">
+    <xsl:template match="//*[local-name()='subsystem' and starts-with(namespace-uri(), $inf)]">
         <xsl:copy>
-            <xsl:apply-templates select="node()[name(.)='security-domain']"/>
-            <security-domain name="keycloak">
-                <authentication>
-                    <login-module code="org.keycloak.adapters.jboss.KeycloakLoginModule" flag="required"/>
-                </authentication>
-            </security-domain>
-            <security-domain name="sp" cache-type="default">
-                <authentication>
-                    <login-module code="org.picketlink.identity.federation.bindings.wildfly.SAML2LoginModule" flag="required"/>
-                </authentication>
-            </security-domain>
+            <cache-container name="keycloak" jndi-name="infinispan/Keycloak" start="EAGER">
+                <local-cache name="realms"/>
+                <local-cache name="users"/>
+                <local-cache name="sessions"/>
+                <local-cache name="loginFailures"/>
+            </cache-container>
+            <xsl:apply-templates select="node()|@*"/>
         </xsl:copy>
     </xsl:template>
 

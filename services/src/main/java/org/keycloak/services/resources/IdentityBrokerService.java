@@ -46,6 +46,7 @@ import org.keycloak.models.RoleModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.models.utils.DefaultAuthenticationFlows;
+import org.keycloak.models.utils.FormMessage;
 import org.keycloak.protocol.oidc.TokenManager;
 import org.keycloak.provider.ProviderFactory;
 import org.keycloak.representations.AccessToken;
@@ -144,7 +145,6 @@ public class IdentityBrokerService implements IdentityProvider.AuthenticationCal
             Response response = identityProvider.performLogin(createAuthenticationRequest(providerId, clientSessionCode));
 
             if (response != null) {
-                this.event.success();
                 if (isDebugEnabled()) {
                     LOGGER.debugf("Identity provider [%s] is going to send a request [%s].", identityProvider, response);
                 }
@@ -191,8 +191,8 @@ public class IdentityBrokerService implements IdentityProvider.AuthenticationCal
 
             if (authResult != null) {
                 AccessToken token = authResult.getToken();
-                String audience = token.getAudience();
-                ClientModel clientModel = this.realmModel.getClientByClientId(audience);
+                String[] audience = token.getAudience();
+                ClientModel clientModel = this.realmModel.getClientByClientId(audience[0]);
 
                 if (clientModel == null) {
                     return badRequest("Invalid client.");
@@ -256,6 +256,10 @@ public class IdentityBrokerService implements IdentityProvider.AuthenticationCal
         }
 
         ClientSessionModel clientSession = clientCode.getClientSession();
+        context.setClientSession(clientSession);
+
+        session.getContext().setClient(clientSession.getClient());
+
         context.getIdp().preprocessFederatedIdentity(session, realmModel, context);
         Set<IdentityProviderMapperModel> mappers = realmModel.getIdentityProviderMappersByAlias(context.getIdpConfig().getAlias());
         if (mappers != null) {
@@ -467,10 +471,11 @@ public class IdentityBrokerService implements IdentityProvider.AuthenticationCal
 
     protected Response browserAuthentication(ClientSessionModel clientSession, String errorMessage) {
         this.event.event(EventType.LOGIN);
-        AuthenticationFlowModel flow = realmModel.getFlowByAlias(DefaultAuthenticationFlows.BROWSER_FLOW);
+        AuthenticationFlowModel flow = realmModel.getBrowserFlow();
         String flowId = flow.getId();
         AuthenticationProcessor processor = new AuthenticationProcessor();
         processor.setClientSession(clientSession)
+                .setFlowPath(LoginActionsService.AUTHENTICATE_PATH)
                 .setFlowId(flowId)
                 .setConnection(clientConnection)
                 .setEventBuilder(event)
@@ -479,7 +484,7 @@ public class IdentityBrokerService implements IdentityProvider.AuthenticationCal
                 .setSession(session)
                 .setUriInfo(uriInfo)
                 .setRequest(request);
-        if (errorMessage != null) processor.setForwardedErrorMessage(errorMessage);
+        if (errorMessage != null) processor.setForwardedErrorMessage(new FormMessage(null, errorMessage));
 
         try {
             return processor.authenticate();

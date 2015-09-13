@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.TreeSet;
 
 import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
@@ -80,8 +81,8 @@ public class LDAPIdentityStore implements IdentityStore {
         this.operationManager.createSubContext(entryDN, ldapAttributes);
         ldapObject.setUuid(getEntryIdentifier(ldapObject));
 
-        if (logger.isTraceEnabled()) {
-            logger.tracef("Type with identifier [%s] and dn [%s] successfully added to LDAP store.", ldapObject.getUuid(), entryDN);
+        if (logger.isDebugEnabled()) {
+            logger.debugf("Type with identifier [%s] and dn [%s] successfully added to LDAP store.", ldapObject.getUuid(), entryDN);
         }
     }
 
@@ -93,8 +94,8 @@ public class LDAPIdentityStore implements IdentityStore {
         String entryDn = ldapObject.getDn().toString();
         this.operationManager.modifyAttributes(entryDn, attributes);
 
-        if (logger.isTraceEnabled()) {
-            logger.tracef("Type with identifier [%s] and DN [%s] successfully updated to LDAP store.", ldapObject.getUuid(), entryDn);
+        if (logger.isDebugEnabled()) {
+            logger.debugf("Type with identifier [%s] and DN [%s] successfully updated to LDAP store.", ldapObject.getUuid(), entryDn);
         }
     }
 
@@ -102,8 +103,8 @@ public class LDAPIdentityStore implements IdentityStore {
     public void remove(LDAPObject ldapObject) {
         this.operationManager.removeEntry(ldapObject.getDn().toString());
 
-        if (logger.isTraceEnabled()) {
-            logger.tracef("Type with identifier [%s] and DN [%s] successfully removed from LDAP store.", ldapObject.getUuid(), ldapObject.getDn().toString());
+        if (logger.isDebugEnabled()) {
+            logger.debugf("Type with identifier [%s] and DN [%s] successfully removed from LDAP store.", ldapObject.getUuid(), ldapObject.getDn().toString());
         }
     }
 
@@ -130,7 +131,7 @@ public class LDAPIdentityStore implements IdentityStore {
                                 .lookupById(baseDN, equalCondition.getValue().toString(), identityQuery.getReturningLdapAttributes());
 
                         if (search != null) {
-                            results.add(populateAttributedType(search, identityQuery.getReturningReadOnlyLdapAttributes()));
+                            results.add(populateAttributedType(search, identityQuery));
                         }
                     }
 
@@ -150,7 +151,7 @@ public class LDAPIdentityStore implements IdentityStore {
 
             for (SearchResult result : search) {
                 if (!result.getNameInNamespace().equalsIgnoreCase(baseDN)) {
-                    results.add(populateAttributedType(result, identityQuery.getReturningReadOnlyLdapAttributes()));
+                    results.add(populateAttributedType(result, identityQuery));
                 }
             }
         } catch (Exception e) {
@@ -371,7 +372,13 @@ public class LDAPIdentityStore implements IdentityStore {
     }
 
 
-    private LDAPObject populateAttributedType(SearchResult searchResult, Collection<String> readOnlyAttrNames) {
+    private LDAPObject populateAttributedType(SearchResult searchResult, LDAPQuery ldapQuery) {
+        Set<String> readOnlyAttrNames = ldapQuery.getReturningReadOnlyLdapAttributes();
+        Set<String> lowerCasedAttrNames = new TreeSet<>();
+        for (String attrName : ldapQuery.getReturningLdapAttributes()) {
+            lowerCasedAttrNames.add(attrName.toLowerCase());
+        }
+
         try {
             String entryDN = searchResult.getNameInNamespace();
             Attributes attributes = searchResult.getAttributes();
@@ -397,7 +404,10 @@ public class LDAPIdentityStore implements IdentityStore {
                 if (ldapAttributeName.equalsIgnoreCase(getConfig().getUuidLDAPAttributeName())) {
                     Object uuidValue = ldapAttribute.get();
                     ldapObject.setUuid(this.operationManager.decodeEntryUUID(uuidValue));
-                } else {
+                }
+
+                // Note: UUID is normally not populated here. It's populated just in case that it's used for name of other attribute as well
+                if (!ldapAttributeName.equalsIgnoreCase(getConfig().getUuidLDAPAttributeName()) || (lowerCasedAttrNames.contains(ldapAttributeName.toLowerCase()))) {
                     Set<String> attrValues = new LinkedHashSet<>();
                     NamingEnumeration<?> enumm = ldapAttribute.getAll();
                     while (enumm.hasMoreElements()) {
@@ -419,7 +429,7 @@ public class LDAPIdentityStore implements IdentityStore {
             }
 
             if (logger.isTraceEnabled()) {
-                logger.tracef("Found ldap object [%s] and populated with the attributes [%s]. Read-only attributes are [%s]", ldapObject.getDn().toString(), ldapObject.getAttributes(), ldapObject.getReadOnlyAttributeNames());
+                logger.tracef("Found ldap object and populated with the attributes. LDAP Object: %s", ldapObject.toString());
             }
             return ldapObject;
 

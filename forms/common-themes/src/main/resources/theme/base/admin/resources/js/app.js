@@ -82,8 +82,8 @@ module.config([ '$routeProvider', function($routeProvider) {
                 realm : function(RealmLoader) {
                     return RealmLoader();
                 },
-                serverInfo : function(ServerInfoLoader) {
-                    return ServerInfoLoader();
+                serverInfo : function(ServerInfo) {
+                    return ServerInfo.delay;
                 }
             },
             controller : 'RealmLoginSettingsCtrl'
@@ -345,6 +345,18 @@ module.config([ '$routeProvider', function($routeProvider) {
             },
             controller : 'UserDetailCtrl'
         })
+        .when('/realms/:realm/users/:user/user-attributes', {
+            templateUrl : resourceUrl + '/partials/user-attributes.html',
+            resolve : {
+                realm : function(RealmLoader) {
+                    return RealmLoader();
+                },
+                user : function(UserLoader) {
+                    return UserLoader();
+                }
+            },
+            controller : 'UserDetailCtrl'
+        })
         .when('/realms/:realm/users/:user/user-credentials', {
             templateUrl : resourceUrl + '/partials/user-credentials.html',
             resolve : {
@@ -368,6 +380,9 @@ module.config([ '$routeProvider', function($routeProvider) {
                 },
                 clients : function(ClientListLoader) {
                     return ClientListLoader();
+                },
+                client : function() {
+                    return {};
                 }
             },
             controller : 'UserRoleMappingCtrl'
@@ -620,9 +635,45 @@ module.config([ '$routeProvider', function($routeProvider) {
                 },
                 client : function(ClientLoader) {
                     return ClientLoader();
+                },
+                clientAuthenticatorProviders : function(ClientAuthenticatorProvidersLoader) {
+                    return ClientAuthenticatorProvidersLoader();
+                },
+                clientConfigProperties: function(PerClientAuthenticationConfigDescriptionLoader) {
+                    return PerClientAuthenticationConfigDescriptionLoader();
                 }
             },
             controller : 'ClientCredentialsCtrl'
+        })
+        .when('/realms/:realm/clients/:client/credentials/client-jwt/:keyType/import/:attribute', {
+            templateUrl : resourceUrl + '/partials/client-credentials-jwt-key-import.html',
+            resolve : {
+                realm : function(RealmLoader) {
+                    return RealmLoader();
+                },
+                client : function(ClientLoader) {
+                    return ClientLoader();
+                },
+                callingContext : function() {
+                    return "jwt-credentials";
+                }
+            },
+            controller : 'ClientCertificateImportCtrl'
+        })
+        .when('/realms/:realm/clients/:client/credentials/client-jwt/:keyType/export/:attribute', {
+            templateUrl : resourceUrl + '/partials/client-credentials-jwt-key-export.html',
+            resolve : {
+                realm : function(RealmLoader) {
+                    return RealmLoader();
+                },
+                client : function(ClientLoader) {
+                    return ClientLoader();
+                },
+                callingContext : function() {
+                    return "jwt-credentials";
+                }
+            },
+            controller : 'ClientCertificateExportCtrl'
         })
         .when('/realms/:realm/clients/:client/identity-provider', {
             templateUrl : resourceUrl + '/partials/client-identity-provider.html',
@@ -692,6 +743,9 @@ module.config([ '$routeProvider', function($routeProvider) {
                 },
                 client : function(ClientLoader) {
                     return ClientLoader();
+                },
+                callingContext : function() {
+                    return "saml";
                 }
             },
             controller : 'ClientCertificateImportCtrl'
@@ -704,6 +758,9 @@ module.config([ '$routeProvider', function($routeProvider) {
                 },
                 client : function(ClientLoader) {
                     return ClientLoader();
+                },
+                callingContext : function() {
+                    return "saml";
                 }
             },
             controller : 'ClientCertificateExportCtrl'
@@ -761,6 +818,24 @@ module.config([ '$routeProvider', function($routeProvider) {
                 }
             },
             controller : 'ClientInstallationCtrl'
+        })
+        .when('/realms/:realm/clients/:client/service-account-roles', {
+            templateUrl : resourceUrl + '/partials/client-service-account-roles.html',
+            resolve : {
+                realm : function(RealmLoader) {
+                    return RealmLoader();
+                },
+                user : function(ClientServiceAccountUserLoader) {
+                    return ClientServiceAccountUserLoader();
+                },
+                clients : function(ClientListLoader) {
+                    return ClientListLoader();
+                },
+                client : function(ClientLoader) {
+                    return ClientLoader();
+                }
+            },
+            controller : 'UserRoleMappingCtrl'
         })
         .when('/create/client/:realm', {
             templateUrl : resourceUrl + '/partials/client-detail.html',
@@ -1059,15 +1134,102 @@ module.config([ '$routeProvider', function($routeProvider) {
                 },
                 flows : function(AuthenticationFlowsLoader) {
                     return AuthenticationFlowsLoader();
+                },
+                selectedFlow : function() {
+                    return null;
                 }
             },
             controller : 'AuthenticationFlowsCtrl'
+        })
+        .when('/realms/:realm/authentication/flow-bindings', {
+            templateUrl : resourceUrl + '/partials/authentication-flow-bindings.html',
+            resolve : {
+                realm : function(RealmLoader) {
+                    return RealmLoader();
+                },
+                flows : function(AuthenticationFlowsLoader) {
+                    return AuthenticationFlowsLoader();
+                },
+                serverInfo : function(ServerInfo) {
+                    return ServerInfo.delay;
+                }
+            },
+            controller : 'RealmFlowBindingCtrl'
+        })
+        .when('/realms/:realm/authentication/flows/:flow', {
+            templateUrl : resourceUrl + '/partials/authentication-flows.html',
+            resolve : {
+                realm : function(RealmLoader) {
+                    return RealmLoader();
+                },
+                flows : function(AuthenticationFlowsLoader) {
+                    return AuthenticationFlowsLoader();
+                },
+                selectedFlow : function($route) {
+                    return $route.current.params.flow;
+                }
+            },
+            controller : 'AuthenticationFlowsCtrl'
+        })
+        .when('/realms/:realm/authentication/flows/:flow/create/execution/:topFlow', {
+            templateUrl : resourceUrl + '/partials/create-execution.html',
+            resolve : {
+                realm : function(RealmLoader) {
+                    return RealmLoader();
+                },
+                topFlow: function($route) {
+                    return $route.current.params.topFlow;
+                },
+                parentFlow : function(AuthenticationFlowLoader) {
+                    return AuthenticationFlowLoader();
+                },
+                formActionProviders : function(AuthenticationFormActionProvidersLoader) {
+                    return AuthenticationFormActionProvidersLoader();
+                },
+                authenticatorProviders : function(AuthenticatorProvidersLoader) {
+                    return AuthenticatorProvidersLoader();
+                },
+                clientAuthenticatorProviders : function(ClientAuthenticatorProvidersLoader) {
+                    return ClientAuthenticatorProvidersLoader();
+                }
+            },
+            controller : 'CreateExecutionCtrl'
+        })
+        .when('/realms/:realm/authentication/flows/:flow/create/flow/execution/:topFlow', {
+            templateUrl : resourceUrl + '/partials/create-flow-execution.html',
+            resolve : {
+                realm : function(RealmLoader) {
+                    return RealmLoader();
+                },
+                topFlow: function($route) {
+                    return $route.current.params.topFlow;
+                },
+                parentFlow : function(AuthenticationFlowLoader) {
+                    return AuthenticationFlowLoader();
+                },
+                formProviders : function(AuthenticationFormProvidersLoader) {
+                    return AuthenticationFormProvidersLoader();
+                }
+            },
+            controller : 'CreateExecutionFlowCtrl'
+        })
+        .when('/realms/:realm/authentication/create/flow', {
+            templateUrl : resourceUrl + '/partials/create-flow.html',
+            resolve : {
+                realm : function(RealmLoader) {
+                    return RealmLoader();
+                }
+            },
+            controller : 'CreateFlowCtrl'
         })
         .when('/realms/:realm/authentication/required-actions', {
             templateUrl : resourceUrl + '/partials/required-actions.html',
             resolve : {
                 realm : function(RealmLoader) {
                     return RealmLoader();
+                },
+                unregisteredRequiredActions : function(UnregisteredRequiredActionsListLoader) {
+                    return UnregisteredRequiredActionsListLoader();
                 }
             },
             controller : 'RequiredActionsCtrl'
@@ -1080,6 +1242,18 @@ module.config([ '$routeProvider', function($routeProvider) {
                 }
             },
             controller : 'RealmPasswordPolicyCtrl'
+        })
+        .when('/realms/:realm/authentication/otp-policy', {
+            templateUrl : resourceUrl + '/partials/otp-policy.html',
+            resolve : {
+                realm : function(RealmLoader) {
+                    return RealmLoader();
+                },
+                serverInfo : function(ServerInfo) {
+                    return ServerInfo.delay;
+                }
+            },
+            controller : 'RealmOtpPolicyCtrl'
         })
         .when('/realms/:realm/authentication/config/:provider/:config', {
             templateUrl : resourceUrl + '/partials/authenticator-config.html',
@@ -1112,7 +1286,22 @@ module.config([ '$routeProvider', function($routeProvider) {
             controller : 'AuthenticationConfigCreateCtrl'
         })
         .when('/server-info', {
-            templateUrl : resourceUrl + '/partials/server-info.html'
+            templateUrl : resourceUrl + '/partials/server-info.html',
+            resolve : {
+            	serverInfo : function(ServerInfoLoader) {
+                return ServerInfoLoader();
+            	}
+            },
+            controller : 'ServerInfoCtrl'
+        })
+        .when('/server-info/providers', {
+            templateUrl : resourceUrl + '/partials/server-info-providers.html',
+            resolve : {
+                serverInfo : function(ServerInfoLoader) {
+                    return ServerInfoLoader();
+                }
+            },
+            controller : 'ServerInfoCtrl'
         })
         .when('/logout', {
             templateUrl : resourceUrl + '/partials/home.html',
@@ -1130,7 +1319,7 @@ module.config([ '$routeProvider', function($routeProvider) {
 } ]);
 
 module.config(function($httpProvider) {
-    $httpProvider.responseInterceptors.push('errorInterceptor');
+    $httpProvider.interceptors.push('errorInterceptor');
 
     var spinnerFunction = function(data, headersGetter) {
         if (resourceRequests == 0) {
@@ -1144,14 +1333,14 @@ module.config(function($httpProvider) {
     };
     $httpProvider.defaults.transformRequest.push(spinnerFunction);
 
-    $httpProvider.responseInterceptors.push('spinnerInterceptor');
+    $httpProvider.interceptors.push('spinnerInterceptor');
     $httpProvider.interceptors.push('authInterceptor');
 
 });
 
 module.factory('spinnerInterceptor', function($q, $window, $rootScope, $location) {
-    return function(promise) {
-        return promise.then(function(response) {
+    return {
+        response: function(response) {
             resourceRequests--;
             if (resourceRequests == 0) {
                 if(loadingTimer != -1) {
@@ -1161,7 +1350,8 @@ module.factory('spinnerInterceptor', function($q, $window, $rootScope, $location
                 $('#loading').hide();
             }
             return response;
-        }, function(response) {
+        }, 
+        responseError: function(response) {
             resourceRequests--;
             if (resourceRequests == 0) {
                 if(loadingTimer != -1) {
@@ -1172,15 +1362,16 @@ module.factory('spinnerInterceptor', function($q, $window, $rootScope, $location
             }
 
             return $q.reject(response);
-        });
+        }
     };
 });
 
 module.factory('errorInterceptor', function($q, $window, $rootScope, $location, Notifications, Auth) {
-    return function(promise) {
-        return promise.then(function(response) {
+    return {
+        response: function(response) {
             return response;
-        }, function(response) {
+        }, 
+        responseError: function(response) {
             if (response.status == 401) {
                 Auth.authz.logout();
             } else if (response.status == 403) {
@@ -1195,7 +1386,7 @@ module.factory('errorInterceptor', function($q, $window, $rootScope, $location, 
                 }
             }
             return $q.reject(response);
-        });
+        }
     };
 });
 
@@ -1277,7 +1468,7 @@ module.directive('onoffswitch', function() {
 });
 
 /**
- * Directive for presenting an ON-OFF switch for checkbox.
+ * Directive for presenting an ON-OFF switch for checkbox. The directive expects the value to be string 'true' or 'false', not boolean true/false
  * This directive provides some additional capabilities to the default onoffswitch such as:
  *
  * - Dynamic values for id and name attributes. Useful if you need to use this directive inside a ng-repeat
@@ -1285,7 +1476,7 @@ module.directive('onoffswitch', function() {
  *
  * Usage: <input ng-model="mmm" name="nnn" id="iii" kc-onoffswitch-model [on-text="ooo" off-text="fff"] />
  */
-module.directive('onoffswitchmodel', function() {
+module.directive('onoffswitchstring', function() {
     return {
         restrict: "EA",
         replace: true,
@@ -1300,7 +1491,7 @@ module.directive('onoffswitchmodel', function() {
         },
         // TODO - The same code acts differently when put into the templateURL. Find why and move the code there.
         //templateUrl: "templates/kc-switch.html",
-        template: "<span><div class='onoffswitch' tabindex='0'><input type='checkbox' ng-true-value='{{value}}' ng-model='ngModel' ng-disabled='ngDisabled' class='onoffswitch-checkbox' name='kc{{name}}' id='kc{{id}}'><label for='kc{{id}}' class='onoffswitch-label'><span class='onoffswitch-inner'><span class='onoffswitch-active'>{{kcOnText}}</span><span class='onoffswitch-inactive'>{{kcOffText}}</span></span><span class='onoffswitch-switch'></span></label></div></span>",
+        template: '<span><div class="onoffswitch" tabindex="0"><input type="checkbox" ng-true-value="\'true\'" ng-false-value="\'false\'" ng-model="ngModel" ng-disabled="ngDisabled" class="onoffswitch-checkbox" name="kc{{name}}" id="kc{{id}}"><label for="kc{{id}}" class="onoffswitch-label"><span class="onoffswitch-inner"><span class="onoffswitch-active">{{kcOnText}}</span><span class="onoffswitch-inactive">{{kcOffText}}</span></span><span class="onoffswitch-switch"></span></label></div></span>',
         compile: function(element, attrs) {
 
             if (!attrs.onText) { attrs.onText = "ON"; }
@@ -1594,8 +1785,25 @@ module.directive('kcNavigationUser', function () {
     }
 });
 
+module.directive('kcTabsIdentityProvider', function () {
+    return {
+        scope: true,
+        restrict: 'E',
+        replace: true,
+        templateUrl: resourceUrl + '/templates/kc-tabs-identity-provider.html'
+    }
+});
+
+module.directive('kcTabsUserFederation', function () {
+    return {
+        scope: true,
+        restrict: 'E',
+        replace: true,
+        templateUrl: resourceUrl + '/templates/kc-tabs-user-federation.html'
+    }
+});
+
 module.controller('RoleSelectorModalCtrl', function($scope, realm, config, configName, RealmRoles, Client, ClientRole, $modalInstance) {
-    console.log('realm: ' + realm.realm);
     $scope.selectedRealmRole = {
         role: undefined
     };
@@ -1643,6 +1851,25 @@ module.controller('RoleSelectorModalCtrl', function($scope, realm, config, confi
     })
 });
 
+module.controller('ProviderConfigCtrl', function ($modal, $scope) {
+    $scope.openRoleSelector = function (configName, config) {
+        $modal.open({
+            templateUrl: resourceUrl + '/partials/modal/role-selector.html',
+            controller: 'RoleSelectorModalCtrl',
+            resolve: {
+                realm: function () {
+                    return $scope.realm;
+                },
+                config: function () {
+                    return config;
+                },
+                configName: function () {
+                    return configName;
+                }
+            }
+        })
+    }
+});
 
 module.directive('kcProviderConfig', function ($modal) {
     return {
@@ -1650,32 +1877,12 @@ module.directive('kcProviderConfig', function ($modal) {
             config: '=',
             properties: '=',
             realm: '=',
-            clients: '='
+            clients: '=',
+            configName: '='
         },
         restrict: 'E',
         replace: true,
-        link: function(scope, element, attrs) {
-            scope.openRoleSelector = function(configName) {
-                $modal.open({
-                    templateUrl: resourceUrl + '/partials/modal/role-selector.html',
-                    controller: 'RoleSelectorModalCtrl',
-                    resolve: {
-                        realm: function () {
-                            return scope.realm;
-                        },
-                        config: function() {
-                            return scope.config;
-                        },
-                        configName: function() {
-
-                            return configName;
-                        }
-                    }
-                })
-
-            };
-
-        },
+        controller: 'ProviderConfigCtrl',
         templateUrl: resourceUrl + '/templates/kc-provider-config.html'
     }
 });
@@ -1807,9 +2014,25 @@ module.directive('kcTooltip', function($compile) {
                 element.addClass('hidden');
 
                 var label = angular.element(element.parent().children()[0]);
-                label.append(' <i class="fa fa-question-circle text-muted" tooltip="' + tooltip + '" tooltip-placement="right"></i>');
+                label.append(' <i class="fa fa-question-circle text-muted" tooltip="' + tooltip + '" tooltip-placement="right" tooltip-trigger="mouseover mouseout"></i>');
 
                 $compile(label)(scope);
             }
         };
+});
+
+module.directive( 'kcOpen', function ( $location ) {
+    return function ( scope, element, attrs ) {
+        var path;
+
+        attrs.$observe( 'kcOpen', function (val) {
+            path = val;
+        });
+
+        element.bind( 'click', function () {
+            scope.$apply( function () {
+                $location.path(path);
+            });
+        });
+    };
 });

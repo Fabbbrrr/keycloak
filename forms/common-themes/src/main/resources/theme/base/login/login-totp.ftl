@@ -6,9 +6,6 @@
         ${msg("loginTitleHtml",realm.name)}
     <#elseif section = "form">
         <form id="kc-totp-login-form" class="${properties.kcFormClass!}" action="${url.loginAction}" method="post">
-            <input id="username" name="username" value="${login.username!''}" type="hidden" />
-            <input id="password-token" name="password-token" value="${login.passwordToken!''}" type="hidden" />
-
             <div class="${properties.kcFormGroupClass!}">
                 <div class="${properties.kcLabelWrapperClass!}">
                     <label for="totp" class="${properties.kcLabelClass!}">${msg("loginTotpOneTime")}</label>
@@ -28,7 +25,6 @@
                 <div id="kc-form-buttons" class="${properties.kcFormButtonsClass!}">
                     <div class="${properties.kcFormButtonsWrapperClass!}">
                         <input class="${properties.kcButtonClass!} ${properties.kcButtonPrimaryClass!} ${properties.kcButtonLargeClass!}" name="login" id="kc-login" type="submit" value="${msg("doLogIn")}"/>
-                        <input class="${properties.kcButtonClass!} ${properties.kcButtonDefaultClass!} ${properties.kcButtonLargeClass!}" name="cancel" id="kc-cancel" type="submit" value="${msg("doCancel")}"/>
                     </div>
                 </div>
             </div>

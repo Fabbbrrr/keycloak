@@ -80,6 +80,40 @@
     <section>
         <title>Version specific migration</title>
         <section>
+            <title>Migrating to 1.5.0.Final</title>
+            <simplesect>
+                <title>Realm and User cache providers</title>
+                <para>
+                    Infinispan is now the default and only realm and user cache providers. In non-clustered mode a local Infinispan cache is used. We've also removed our
+                    custom in-memory cache and the no cache providers. If you have realmCache or userCache set in keycloak-server.json to mem or none please
+                    remove these. As Infinispan is the only provider there's no longer any need for the realmCache and userCache objects so these can
+                    be removed.
+                </para>
+            </simplesect>
+            <simplesect>
+                <title>Uses Session providers</title>
+                <para>
+                    Infinispan is now the default and only user session provider. In non-clustered mode a local Infinispan cache is used. We've also removed the JPA
+                    and Mongo user session providers. If you have userSession set in keycloak-server.json to mem, jpa or mongo please
+                    remove it. As Infinispan is the only provider there's no longer any need for the userSession object so it can
+                    be removed.
+                </para>
+                <para>
+                    For anyone that wants to achieve increased durability of user sessions this can be achieved by configuring the user session cache with
+                    more than one owner or use a replicated cache. It's also possible to configure Infinispan to persist caches, although that would have
+                    impacts on performance.
+                </para>
+            </simplesect>
+            <simplesect>
+                <title>Contact details removed from registration and account management</title>
+                <para>
+                    In the default theme we have now removed the contact details from the registration page and account management. The admin console now lists
+                    all the users attributes, not just contact specific attributes. The admin console also has the ability to add/remove attributes to a user.
+                    If you want to add contact details, please refer to the address theme included in the examples.
+                </para>
+            </simplesect>
+        </section>
+        <section>
             <title>Migrating to 1.3.0.Final</title>
             <simplesect>
                 <title>Direct Grant API always enabled</title>

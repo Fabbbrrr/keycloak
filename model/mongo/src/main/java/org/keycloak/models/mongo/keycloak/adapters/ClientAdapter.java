@@ -142,6 +142,17 @@ public class ClientAdapter extends AbstractMongoAdapter<MongoClientEntity> imple
     }
 
     @Override
+    public String getClientAuthenticatorType() {
+        return getMongoEntity().getClientAuthenticatorType();
+    }
+
+    @Override
+    public void setClientAuthenticatorType(String clientAuthenticatorType) {
+        getMongoEntity().setClientAuthenticatorType(clientAuthenticatorType);
+        updateMongoEntity();
+    }
+
+    @Override
     public boolean validateSecret(String secret) {
         return secret.equals(getMongoEntity().getSecret());
     }
@@ -458,6 +469,17 @@ public class ClientAdapter extends AbstractMongoAdapter<MongoClientEntity> imple
     @Override
     public void setConsentRequired(boolean consentRequired) {
         getMongoEntity().setConsentRequired(consentRequired);
+        updateMongoEntity();
+    }
+
+    @Override
+    public boolean isServiceAccountsEnabled() {
+        return getMongoEntity().isServiceAccountsEnabled();
+    }
+
+    @Override
+    public void setServiceAccountsEnabled(boolean serviceAccountsEnabled) {
+        getMongoEntity().setServiceAccountsEnabled(serviceAccountsEnabled);
         updateMongoEntity();
     }
 

@@ -43,7 +43,6 @@ import org.keycloak.testsuite.rule.KeycloakRule;
 import org.keycloak.testsuite.rule.KeycloakRule.KeycloakSetup;
 import org.keycloak.testsuite.rule.WebResource;
 import org.keycloak.testsuite.rule.WebRule;
-import org.keycloak.util.Time;
 import org.openqa.selenium.WebDriver;
 
 import java.net.MalformedURLException;
@@ -66,7 +65,7 @@ public class LoginTotpTest {
             credentials.setValue("totpSecret");
             user.updateCredential(credentials);
 
-            user.setTotp(true);
+            user.setOtpEnabled(true);
             appRealm.setEventsListeners(Collections.singleton("dummy"));
         }
 
@@ -122,13 +121,32 @@ public class LoginTotpTest {
     }
 
     @Test
+    public void loginWithMissingTotp() throws Exception {
+        loginPage.open();
+        loginPage.login("test-user@localhost", "password");
+
+        loginTotpPage.assertCurrent();
+
+        loginTotpPage.login(null);
+        loginTotpPage.assertCurrent();
+        Assert.assertEquals("Invalid authenticator code.", loginPage.getError());
+
+        //loginPage.assertCurrent();  // Invalid authenticator code.
+        //Assert.assertEquals("Invalid username or password.", loginPage.getError());
+
+        events.expectLogin().error("invalid_user_credentials").session((String) null)
+                .removeDetail(Details.CONSENT)
+                .assertEvent();
+    }
+
+    @Test
     public void loginWithTotpSuccess() throws Exception {
         loginPage.open();
         loginPage.login("test-user@localhost", "password");
 
         loginTotpPage.assertCurrent();
 
-        loginTotpPage.login(totp.generate("totpSecret"));
+        loginTotpPage.login(totp.generateTOTP("totpSecret"));
 
         Assert.assertEquals(RequestType.AUTH_RESPONSE, appPage.getRequestType());
 

@@ -16,7 +16,23 @@ public interface EmailProvider extends Provider {
 
     public void sendEvent(Event event) throws EmailException;
 
+    /**
+     * Reset password sent from forgot password link on login
+     *
+     * @param link
+     * @param expirationInMinutes
+     * @throws EmailException
+     */
     public void sendPasswordReset(String link, long expirationInMinutes) throws EmailException;
+
+    /**
+     * Change password email requested by admin
+     *
+     * @param link
+     * @param expirationInMinutes
+     * @throws EmailException
+     */
+    public void sendExecuteActions(String link, long expirationInMinutes) throws EmailException;
 
     public void sendVerifyEmail(String link, long expirationInMinutes) throws EmailException;
 

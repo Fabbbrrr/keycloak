@@ -146,6 +146,16 @@ public class ClientAdapter implements ClientModel {
     }
 
     @Override
+    public String getClientAuthenticatorType() {
+        return entity.getClientAuthenticatorType();
+    }
+
+    @Override
+    public void setClientAuthenticatorType(String clientAuthenticatorType) {
+        entity.setClientAuthenticatorType(clientAuthenticatorType);
+    }
+
+    @Override
     public boolean validateSecret(String secret) {
         return secret.equals(entity.getSecret());
     }
@@ -439,6 +449,16 @@ public class ClientAdapter implements ClientModel {
     @Override
     public void setConsentRequired(boolean consentRequired) {
         entity.setConsentRequired(consentRequired);
+    }
+
+    @Override
+    public boolean isServiceAccountsEnabled() {
+        return entity.isServiceAccountsEnabled();
+    }
+
+    @Override
+    public void setServiceAccountsEnabled(boolean serviceAccountsEnabled) {
+        entity.setServiceAccountsEnabled(serviceAccountsEnabled);
     }
 
     @Override

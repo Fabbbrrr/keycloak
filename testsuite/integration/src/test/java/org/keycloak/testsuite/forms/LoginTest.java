@@ -129,6 +129,29 @@ public class LoginTest {
 
         loginPage.assertCurrent();
 
+        // KEYCLOAK-1741 - assert form field values kept
+        Assert.assertEquals("login-test", loginPage.getUsername());
+        Assert.assertEquals("", loginPage.getPassword());
+
+        Assert.assertEquals("Invalid username or password.", loginPage.getError());
+
+        events.expectLogin().user(userId).session((String) null).error("invalid_user_credentials")
+                .detail(Details.USERNAME, "login-test")
+                .removeDetail(Details.CONSENT)
+                .assertEvent();
+    }
+
+    @Test
+    public void loginMissingPassword() {
+        loginPage.open();
+        loginPage.missingPassword("login-test");
+
+        loginPage.assertCurrent();
+
+        // KEYCLOAK-1741 - assert form field values kept
+        Assert.assertEquals("login-test", loginPage.getUsername());
+        Assert.assertEquals("", loginPage.getPassword());
+
         Assert.assertEquals("Invalid username or password.", loginPage.getError());
 
         events.expectLogin().user(userId).session((String) null).error("invalid_user_credentials")
@@ -151,6 +174,10 @@ public class LoginTest {
             loginPage.login("login-test", "invalid");
 
             loginPage.assertCurrent();
+
+            // KEYCLOAK-1741 - assert form field values kept
+            Assert.assertEquals("login-test", loginPage.getUsername());
+            Assert.assertEquals("", loginPage.getPassword());
 
             Assert.assertEquals("Account is disabled, contact admin.", loginPage.getError());
 
@@ -183,6 +210,10 @@ public class LoginTest {
 
             loginPage.assertCurrent();
 
+            // KEYCLOAK-1741 - assert form field values kept
+            Assert.assertEquals("login-test", loginPage.getUsername());
+            Assert.assertEquals("", loginPage.getPassword());
+
             Assert.assertEquals("Account is disabled, contact admin.", loginPage.getError());
 
             events.expectLogin().user(userId).session((String) null).error("user_disabled")
@@ -206,10 +237,28 @@ public class LoginTest {
 
         loginPage.assertCurrent();
 
+        // KEYCLOAK-1741 - assert form field values kept
+        Assert.assertEquals("invalid", loginPage.getUsername());
+        Assert.assertEquals("", loginPage.getPassword());
+
         Assert.assertEquals("Invalid username or password.", loginPage.getError());
 
         events.expectLogin().user((String) null).session((String) null).error("user_not_found")
                 .detail(Details.USERNAME, "invalid")
+                .removeDetail(Details.CONSENT)
+                .assertEvent();
+    }
+
+    @Test
+    public void loginMissingUsername() {
+        loginPage.open();
+        loginPage.missingUsername();
+
+        loginPage.assertCurrent();
+
+        Assert.assertEquals("Invalid username or password.", loginPage.getError());
+
+        events.expectLogin().user((String) null).session((String) null).error("user_not_found")
                 .removeDetail(Details.CONSENT)
                 .assertEvent();
     }
@@ -421,36 +470,29 @@ public class LoginTest {
         }
     }
 
-    @Test
-    public void loginCancel() {
-        loginPage.open();
-        loginPage.cancel();
-
-        Assert.assertEquals(RequestType.AUTH_RESPONSE, appPage.getRequestType());
-        Assert.assertEquals("access_denied", oauth.getCurrentQuery().get(OAuth2Constants.ERROR));
-
-        events.expectLogin().error("rejected_by_user").user((String) null).session((String) null)
-                .removeDetail(Details.USERNAME)
-                .removeDetail(Details.CONSENT)
-                .assertEvent();
-    }
-
     // KEYCLOAK-1037
     @Test
     public void loginExpiredCode() {
         try {
             loginPage.open();
             Time.setOffset(5000);
+            keycloakRule.update(new KeycloakRule.KeycloakSetup() {
+                @Override
+                public void config(RealmManager manager, RealmModel adminstrationRealm, RealmModel appRealm) {
+                   manager.getSession().sessions().removeExpiredUserSessions(appRealm);
+                }
+            });
+
             loginPage.login("login@test.com", "password");
 
             //loginPage.assertCurrent();
-            errorPage.assertCurrent();
+            loginPage.assertCurrent();
 
             //Assert.assertEquals("Login timeout. Please login again.", loginPage.getError());
 
             events.expectLogin().user((String) null).session((String) null).error("expired_code").clearDetails()
-                    .detail(Details.CODE_ID, AssertEvents.isCodeId())
-                    .removeDetail(Details.CONSENT)
+                    .detail(Details.RESTART_AFTER_TIMEOUT, "true")
+                    .client((String) null)
                     .assertEvent();
 
         } finally {

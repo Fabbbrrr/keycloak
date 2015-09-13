@@ -13,13 +13,16 @@ import org.keycloak.models.UserFederationProviderModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.UserProvider;
 import org.keycloak.models.jpa.entities.FederatedIdentityEntity;
+import org.keycloak.models.jpa.entities.UserAttributeEntity;
 import org.keycloak.models.jpa.entities.UserEntity;
 import org.keycloak.models.utils.CredentialValidation;
 import org.keycloak.models.utils.KeycloakModelUtils;
 
 import javax.persistence.EntityManager;
+import javax.persistence.Query;
 import javax.persistence.TypedQuery;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -270,13 +273,29 @@ public class JpaUserProvider implements UserProvider {
     }
 
     @Override
-    public List<UserModel> getUsers(RealmModel realm) {
-        return getUsers(realm, -1, -1);
+    public UserModel getUserByServiceAccountClient(ClientModel client) {
+        TypedQuery<UserEntity> query = em.createNamedQuery("getRealmUserByServiceAccount", UserEntity.class);
+        query.setParameter("realmId", client.getRealm().getId());
+        query.setParameter("clientInternalId", client.getId());
+        List<UserEntity> results = query.getResultList();
+        if (results.isEmpty()) {
+            return null;
+        } else if (results.size() > 1) {
+            throw new IllegalStateException("More service account linked users found for client=" + client.getClientId() +
+                    ", results=" + results);
+        } else {
+            UserEntity user = results.get(0);
+            return new UserAdapter(client.getRealm(), em, user);
+        }
+    }
+
+    @Override
+    public List<UserModel> getUsers(RealmModel realm, boolean includeServiceAccounts) {
+        return getUsers(realm, -1, -1, includeServiceAccounts);
     }
 
     @Override
     public int getUsersCount(RealmModel realm) {
-        // TODO: named query?
         Object count = em.createNamedQuery("getRealmUserCount")
                 .setParameter("realmId", realm.getId())
                 .getSingleResult();
@@ -284,8 +303,10 @@ public class JpaUserProvider implements UserProvider {
     }
 
     @Override
-    public List<UserModel> getUsers(RealmModel realm, int firstResult, int maxResults) {
-        TypedQuery<UserEntity> query = em.createNamedQuery("getAllUsersByRealm", UserEntity.class);
+    public List<UserModel> getUsers(RealmModel realm, int firstResult, int maxResults, boolean includeServiceAccounts) {
+        String queryName = includeServiceAccounts ? "getAllUsersByRealm" : "getAllUsersByRealmExcludeServiceAccount" ;
+
+        TypedQuery<UserEntity> query = em.createNamedQuery(queryName, UserEntity.class);
         query.setParameter("realmId", realm.getId());
         if (firstResult != -1) {
             query.setFirstResult(firstResult);
@@ -376,6 +397,21 @@ public class JpaUserProvider implements UserProvider {
         List<UserEntity> results = query.getResultList();
         List<UserModel> users = new ArrayList<UserModel>();
         for (UserEntity entity : results) users.add(new UserAdapter(realm, em, entity));
+        return users;
+    }
+
+    @Override
+    public List<UserModel> searchForUserByUserAttribute(String attrName, String attrValue, RealmModel realm) {
+        TypedQuery<UserAttributeEntity> query = em.createNamedQuery("getAttributesByNameAndValue", UserAttributeEntity.class);
+        query.setParameter("name", attrName);
+        query.setParameter("value", attrValue);
+        List<UserAttributeEntity> results = query.getResultList();
+
+        List<UserModel> users = new ArrayList<UserModel>();
+        for (UserAttributeEntity attr : results) {
+            UserEntity user = attr.getUser();
+            users.add(new UserAdapter(realm, em, user));
+        }
         return users;
     }
 

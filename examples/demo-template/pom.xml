@@ -3,7 +3,7 @@
     <parent>
         <artifactId>keycloak-examples-parent</artifactId>
         <groupId>org.keycloak</groupId>
-        <version>1.4.0.Final-SNAPSHOT</version>
+        <version>1.5.0.Final-SNAPSHOT</version>
     </parent>
 
     <name>Examples</name>
@@ -36,6 +36,7 @@
         <module>database-service</module>
         <module>third-party</module>
         <module>third-party-cdi</module>
+        <module>service-account</module>
     </modules>
 
     <profiles>

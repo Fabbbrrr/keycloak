@@ -15,6 +15,7 @@ public class ClientRepresentation {
     protected String baseUrl;
     protected Boolean surrogateAuthRequired;
     protected Boolean enabled;
+    protected String clientAuthenticatorType;
     protected String secret;
     protected String[] defaultRoles;
     protected List<String> redirectUris;
@@ -22,6 +23,7 @@ public class ClientRepresentation {
     protected Integer notBefore;
     protected Boolean bearerOnly;
     protected Boolean consentRequired;
+    protected Boolean serviceAccountsEnabled;
     protected Boolean directGrantsOnly;
     protected Boolean publicClient;
     protected Boolean frontchannelLogout;
@@ -88,6 +90,14 @@ public class ClientRepresentation {
         this.baseUrl = baseUrl;
     }
 
+    public String getClientAuthenticatorType() {
+        return clientAuthenticatorType;
+    }
+
+    public void setClientAuthenticatorType(String clientAuthenticatorType) {
+        this.clientAuthenticatorType = clientAuthenticatorType;
+    }
+
     public String getSecret() {
         return secret;
     }
@@ -142,6 +152,14 @@ public class ClientRepresentation {
 
     public void setConsentRequired(Boolean consentRequired) {
         this.consentRequired = consentRequired;
+    }
+
+    public Boolean isServiceAccountsEnabled() {
+        return serviceAccountsEnabled;
+    }
+
+    public void setServiceAccountsEnabled(Boolean serviceAccountsEnabled) {
+        this.serviceAccountsEnabled = serviceAccountsEnabled;
     }
 
     public Boolean isDirectGrantsOnly() {

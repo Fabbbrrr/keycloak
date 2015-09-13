@@ -9,8 +9,10 @@ import org.keycloak.models.FederatedIdentityModel;
 import org.keycloak.models.IdentityProviderMapperModel;
 import org.keycloak.models.IdentityProviderModel;
 import org.keycloak.models.ModelException;
+import org.keycloak.models.OTPPolicy;
 import org.keycloak.models.ProtocolMapperModel;
 import org.keycloak.models.RealmModel;
+import org.keycloak.models.RequiredActionProviderModel;
 import org.keycloak.models.RequiredCredentialModel;
 import org.keycloak.models.RoleModel;
 import org.keycloak.models.UserConsentModel;
@@ -31,6 +33,7 @@ import org.keycloak.representations.idm.IdentityProviderRepresentation;
 import org.keycloak.representations.idm.ProtocolMapperRepresentation;
 import org.keycloak.representations.idm.RealmEventsConfigRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
+import org.keycloak.representations.idm.RequiredActionProviderRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserConsentRepresentation;
 import org.keycloak.representations.idm.UserFederationMapperRepresentation;
@@ -62,7 +65,7 @@ public class ModelToRepresentation {
         rep.setEmail(user.getEmail());
         rep.setEnabled(user.isEnabled());
         rep.setEmailVerified(user.isEmailVerified());
-        rep.setTotp(user.isTotp());
+        rep.setTotp(user.isOtpEnabled());
         rep.setFederationLink(user.getFederationLink());
 
         List<String> reqActions = new ArrayList<String>();
@@ -129,6 +132,9 @@ public class ModelToRepresentation {
             rep.setEnabledEventTypes(new LinkedList<String>(realm.getEnabledEventTypes()));
         }
 
+        rep.setAdminEventsEnabled(realm.isAdminEventsEnabled());
+        rep.setAdminEventsDetailsEnabled(realm.isAdminEventsDetailsEnabled());
+
         rep.setVerifyEmail(realm.isVerifyEmail());
         rep.setResetPasswordAllowed(realm.isResetPasswordAllowed());
         rep.setEditUsernameAllowed(realm.isEditUsernameAllowed());
@@ -147,6 +153,18 @@ public class ModelToRepresentation {
         if (realm.getPasswordPolicy() != null) {
             rep.setPasswordPolicy(realm.getPasswordPolicy().toString());
         }
+        OTPPolicy otpPolicy = realm.getOTPPolicy();
+        rep.setOtpPolicyAlgorithm(otpPolicy.getAlgorithm());
+        rep.setOtpPolicyPeriod(otpPolicy.getPeriod());
+        rep.setOtpPolicyDigits(otpPolicy.getDigits());
+        rep.setOtpPolicyInitialCounter(otpPolicy.getInitialCounter());
+        rep.setOtpPolicyType(otpPolicy.getType());
+        rep.setOtpPolicyLookAheadWindow(otpPolicy.getLookAheadWindow());
+        if (realm.getBrowserFlow() != null) rep.setBrowserFlow(realm.getBrowserFlow().getAlias());
+        if (realm.getRegistrationFlow() != null) rep.setRegistrationFlow(realm.getRegistrationFlow().getAlias());
+        if (realm.getDirectGrantFlow() != null) rep.setDirectGrantFlow(realm.getDirectGrantFlow().getAlias());
+        if (realm.getResetCredentialsFlow() != null) rep.setResetCredentialsFlow(realm.getResetCredentialsFlow().getAlias());
+        if (realm.getClientAuthenticationFlow() != null) rep.setClientAuthenticationFlow(realm.getClientAuthenticationFlow().getAlias());
 
         List<String> defaultRoles = realm.getDefaultRoles();
         if (!defaultRoles.isEmpty()) {
@@ -190,6 +208,7 @@ public class ModelToRepresentation {
         rep.setDefaultLocale(realm.getDefaultLocale());
         if (internal) {
             exportAuthenticationFlows(realm, rep);
+            exportRequiredActions(realm, rep);
         }
         return rep;
     }
@@ -205,6 +224,14 @@ public class ModelToRepresentation {
             rep.getAuthenticatorConfig().add(toRepresentation(model));
         }
 
+    }
+
+    public static void exportRequiredActions(RealmModel realm, RealmRepresentation rep) {
+        rep.setRequiredActions(new LinkedList<RequiredActionProviderRepresentation>());
+        for (RequiredActionProviderModel model : realm.getRequiredActionProviders()) {
+            RequiredActionProviderRepresentation action = toRepresentation(model);
+            rep.getRequiredActions().add(action);
+        }
     }
 
 
@@ -275,11 +302,13 @@ public class ModelToRepresentation {
         rep.setFullScopeAllowed(clientModel.isFullScopeAllowed());
         rep.setBearerOnly(clientModel.isBearerOnly());
         rep.setConsentRequired(clientModel.isConsentRequired());
+        rep.setServiceAccountsEnabled(clientModel.isServiceAccountsEnabled());
         rep.setDirectGrantsOnly(clientModel.isDirectGrantsOnly());
         rep.setSurrogateAuthRequired(clientModel.isSurrogateAuthRequired());
         rep.setBaseUrl(clientModel.getBaseUrl());
         rep.setNotBefore(clientModel.getNotBefore());
         rep.setNodeReRegistrationTimeout(clientModel.getNodeReRegistrationTimeout());
+        rep.setClientAuthenticatorType(clientModel.getClientAuthenticatorType());
 
         Set<String> redirectUris = clientModel.getRedirectUris();
         if (redirectUris != null) {
@@ -447,13 +476,12 @@ public class ModelToRepresentation {
             rep.setAuthenticatorConfig(config.getAlias());
         }
         rep.setAuthenticator(model.getAuthenticator());
-        rep.setAutheticatorFlow(model.isAutheticatorFlow());
+        rep.setAutheticatorFlow(model.isAuthenticatorFlow());
         if (model.getFlowId() != null) {
             AuthenticationFlowModel flow = realm.getAuthenticationFlowById(model.getFlowId());
             rep.setFlowAlias(flow.getAlias());
        }
         rep.setPriority(model.getPriority());
-        rep.setUserSetupAllowed(model.isUserSetupAllowed());
         rep.setRequirement(model.getRequirement().name());
         return rep;
     }
@@ -464,6 +492,21 @@ public class ModelToRepresentation {
         rep.setConfig(model.getConfig());
         return rep;
     }
+
+    public static RequiredActionProviderRepresentation toRepresentation(RequiredActionProviderModel model) {
+        RequiredActionProviderRepresentation rep = new RequiredActionProviderRepresentation();
+        rep.setAlias(model.getAlias());
+        rep.setDefaultAction(model.isDefaultAction());
+        rep.setEnabled(model.isEnabled());
+        rep.setConfig(model.getConfig());
+        rep.setName(model.getName());
+        rep.setProviderId(model.getProviderId());
+        return rep;
+    }
+
+
+
+
 
 
 }

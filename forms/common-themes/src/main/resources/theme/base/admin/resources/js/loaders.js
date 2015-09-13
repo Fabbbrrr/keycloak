@@ -35,8 +35,10 @@ module.factory('RealmListLoader', function(Loader, Realm, $q) {
 	return Loader.get(Realm);
 });
 
-module.factory('ServerInfoLoader', function(Loader, ServerInfo, $q) {
-    return Loader.get(ServerInfo);
+module.factory('ServerInfoLoader', function(Loader, ServerInfo) {
+    return function() {
+        return ServerInfo.promise;
+    };
 });
 
 module.factory('RealmLoader', function(Loader, Realm, $route, $q) {
@@ -65,6 +67,14 @@ module.factory('UserListLoader', function(Loader, User, $route, $q) {
 
 module.factory('RequiredActionsListLoader', function(Loader, RequiredActions, $route, $q) {
     return Loader.query(RequiredActions, function() {
+        return {
+            realm : $route.current.params.realm
+        }
+    });
+});
+
+module.factory('UnregisteredRequiredActionsListLoader', function(Loader, UnregisteredRequiredActions, $route, $q) {
+    return Loader.query(UnregisteredRequiredActions, function() {
         return {
             realm : $route.current.params.realm
         }
@@ -282,6 +292,15 @@ module.factory('ClientListLoader', function(Loader, Client, $route, $q) {
     });
 });
 
+module.factory('ClientServiceAccountUserLoader', function(Loader, ClientServiceAccountUser, $route, $q) {
+    return Loader.get(ClientServiceAccountUser, function() {
+        return {
+            realm : $route.current.params.realm,
+            client : $route.current.params.client
+        }
+    });
+});
+
 
 module.factory('RoleMappingLoader', function(Loader, RoleMapping, $route, $q) {
 	var realm = $route.current.params.realm || $route.current.params.client;
@@ -343,7 +362,49 @@ module.factory('IdentityProviderMapperLoader', function(Loader, IdentityProvider
 module.factory('AuthenticationFlowsLoader', function(Loader, AuthenticationFlows, $route, $q) {
     return Loader.query(AuthenticationFlows, function() {
         return {
+            realm : $route.current.params.realm,
+            flow: ''
+        }
+    });
+});
+
+module.factory('AuthenticationFormProvidersLoader', function(Loader, AuthenticationFormProviders, $route, $q) {
+    return Loader.query(AuthenticationFormProviders, function() {
+        return {
             realm : $route.current.params.realm
+        }
+    });
+});
+
+module.factory('AuthenticationFormActionProvidersLoader', function(Loader, AuthenticationFormActionProviders, $route, $q) {
+    return Loader.query(AuthenticationFormActionProviders, function() {
+        return {
+            realm : $route.current.params.realm
+        }
+    });
+});
+
+module.factory('AuthenticatorProvidersLoader', function(Loader, AuthenticatorProviders, $route, $q) {
+    return Loader.query(AuthenticatorProviders, function() {
+        return {
+            realm : $route.current.params.realm
+        }
+    });
+});
+
+module.factory('ClientAuthenticatorProvidersLoader', function(Loader, ClientAuthenticatorProviders, $route, $q) {
+    return Loader.query(ClientAuthenticatorProviders, function() {
+        return {
+            realm : $route.current.params.realm
+        }
+    });
+});
+
+module.factory('AuthenticationFlowLoader', function(Loader, AuthenticationFlows, $route, $q) {
+    return Loader.get(AuthenticationFlows, function() {
+        return {
+            realm : $route.current.params.realm,
+            flow: $route.current.params.flow
         }
     });
 });
@@ -353,6 +414,14 @@ module.factory('AuthenticationConfigDescriptionLoader', function(Loader, Authent
         return {
             realm: $route.current.params.realm,
             provider: $route.current.params.provider
+        }
+    });
+});
+
+module.factory('PerClientAuthenticationConfigDescriptionLoader', function(Loader, PerClientAuthenticationConfigDescription, $route, $q) {
+    return Loader.get(PerClientAuthenticationConfigDescription, function () {
+        return {
+            realm: $route.current.params.realm
         }
     });
 });

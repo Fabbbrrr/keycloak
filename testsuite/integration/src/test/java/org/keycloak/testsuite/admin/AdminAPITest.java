@@ -25,6 +25,7 @@ import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.keycloak.Config;
+import org.keycloak.Version;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.ClientSessionModel;
 import org.keycloak.models.Constants;
@@ -55,6 +56,7 @@ import javax.ws.rs.core.UriBuilder;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -131,6 +133,9 @@ public class AdminAPITest {
                 ClientRepresentation newApp = new ClientRepresentation();
                 if (appRep.getId() != null) newApp.setId(appRep.getId());
                 newApp.setClientId(appRep.getClientId());
+                if (appRep.getClientAuthenticatorType() != null) {
+                    newApp.setClientAuthenticatorType(appRep.getClientAuthenticatorType());
+                }
                 if (appRep.getSecret() != null) {
                     newApp.setSecret(appRep.getSecret());
                 }
@@ -175,6 +180,7 @@ public class AdminAPITest {
         if (appRep.getAdminUrl() != null) Assert.assertEquals(appRep.getAdminUrl(), storedApp.getAdminUrl());
         if (appRep.getBaseUrl() != null) Assert.assertEquals(appRep.getBaseUrl(), storedApp.getBaseUrl());
         if (appRep.isSurrogateAuthRequired() != null) Assert.assertEquals(appRep.isSurrogateAuthRequired(), storedApp.isSurrogateAuthRequired());
+        if (appRep.getClientAuthenticatorType() != null) Assert.assertEquals(appRep.getClientAuthenticatorType(), storedApp.getClientAuthenticatorType());
 
         if (appRep.getNotBefore() != null) {
             Assert.assertEquals(appRep.getNotBefore(), storedApp.getNotBefore());
@@ -293,6 +299,39 @@ public class AdminAPITest {
         empty.setRealm("empty");
         testCreateRealm(empty);
         testCreateRealm("/admin-test/testrealm.json");
+    }
+
+    @Test
+    public void testServerInfo() {
+        String token = createToken();
+        final String authHeader = "Bearer " + token;
+        ClientRequestFilter authFilter = new ClientRequestFilter() {
+            @Override
+            public void filter(ClientRequestContext requestContext) throws IOException {
+                requestContext.getHeaders().add(HttpHeaders.AUTHORIZATION, authHeader);
+            }
+        };
+        Client client = ClientBuilder.newBuilder().register(authFilter).build();
+        UriBuilder authBase = UriBuilder.fromUri("http://localhost:8081/auth");
+        WebTarget target = client.target(AdminRoot.adminBaseUrl(authBase).path("serverinfo"));
+
+        Map<?, ?> response = target.request().accept("application/json").get(Map.class);
+
+
+        System.out.println(response.keySet().toString());
+
+        Assert.assertNotNull(response);
+        Assert.assertNotNull(response.get("providers"));
+        Assert.assertNotNull(response.get("themes"));
+        Assert.assertNotNull(response.get("enums"));
+
+        Assert.assertNotNull(response.get("memoryInfo"));
+        Assert.assertNotNull(response.get("systemInfo"));
+
+        Map<?, ?> systemInfo = (Map<?, ?>) response.get("systemInfo");
+        Assert.assertEquals(Version.VERSION, systemInfo.get("version"));
+        Assert.assertNotNull(systemInfo.get("serverTime"));
+        Assert.assertNotNull(systemInfo.get("uptime"));
     }
 
 }

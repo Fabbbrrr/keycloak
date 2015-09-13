@@ -7,6 +7,7 @@ import org.keycloak.models.AuthenticatorConfigModel;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.IdentityProviderMapperModel;
 import org.keycloak.models.IdentityProviderModel;
+import org.keycloak.models.OTPPolicy;
 import org.keycloak.models.PasswordPolicy;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RealmProvider;
@@ -63,6 +64,7 @@ public class CachedRealm implements Serializable {
     private int accessCodeLifespanLogin;
     private int notBefore;
     private PasswordPolicy passwordPolicy;
+    private OTPPolicy otpPolicy;
 
     private String publicKeyPem;
     private String privateKeyPem;
@@ -88,6 +90,12 @@ public class CachedRealm implements Serializable {
     private Map<String, RequiredActionProviderModel> requiredActionProvidersByAlias = new HashMap<>();
     private MultivaluedHashMap<String, AuthenticationExecutionModel> authenticationExecutions = new MultivaluedHashMap<>();
     private Map<String, AuthenticationExecutionModel> executionsById = new HashMap<>();
+
+    private AuthenticationFlowModel browserFlow;
+    private AuthenticationFlowModel registrationFlow;
+    private AuthenticationFlowModel directGrantFlow;
+    private AuthenticationFlowModel resetCredentialsFlow;
+    private AuthenticationFlowModel clientAuthenticationFlow;
 
     private boolean eventsEnabled;
     private long eventsExpiration;
@@ -137,6 +145,7 @@ public class CachedRealm implements Serializable {
         accessCodeLifespanLogin = model.getAccessCodeLifespanLogin();
         notBefore = model.getNotBefore();
         passwordPolicy = model.getPasswordPolicy();
+        otpPolicy = model.getOTPPolicy();
 
         publicKeyPem = model.getPublicKeyPem();
         privateKeyPem = model.getPrivateKeyPem();
@@ -178,7 +187,8 @@ public class CachedRealm implements Serializable {
         adminEventsDetailsEnabled = model.isAdminEventsDetailsEnabled();
         
         defaultRoles.addAll(model.getDefaultRoles());
-        masterAdminClient = model.getMasterAdminClient().getId();
+        ClientModel masterAdminClient = model.getMasterAdminClient();
+        this.masterAdminClient = (masterAdminClient != null) ? masterAdminClient.getId() : null;
 
         for (RoleModel role : model.getRoles()) {
             realmRoles.put(role.getName(), role.getId());
@@ -197,6 +207,7 @@ public class CachedRealm implements Serializable {
         defaultLocale = model.getDefaultLocale();
         for (AuthenticationFlowModel flow : model.getAuthenticationFlows()) {
             authenticationFlows.put(flow.getId(), flow);
+            authenticationExecutions.put(flow.getId(), new LinkedList<AuthenticationExecutionModel>());
             for (AuthenticationExecutionModel execution : model.getAuthenticationExecutions(flow.getId())) {
                 authenticationExecutions.add(flow.getId(), execution);
                 executionsById.put(execution.getId(), execution);
@@ -209,6 +220,12 @@ public class CachedRealm implements Serializable {
             requiredActionProviders.put(action.getId(), action);
             requiredActionProvidersByAlias.put(action.getAlias(), action);
         }
+
+        browserFlow = model.getBrowserFlow();
+        registrationFlow = model.getRegistrationFlow();
+        directGrantFlow = model.getDirectGrantFlow();
+        resetCredentialsFlow = model.getResetCredentialsFlow();
+        clientAuthenticationFlow = model.getClientAuthenticationFlow();
 
     }
 
@@ -454,5 +471,29 @@ public class CachedRealm implements Serializable {
 
     public Map<String, RequiredActionProviderModel> getRequiredActionProvidersByAlias() {
         return requiredActionProvidersByAlias;
+    }
+
+    public OTPPolicy getOtpPolicy() {
+        return otpPolicy;
+    }
+
+    public AuthenticationFlowModel getBrowserFlow() {
+        return browserFlow;
+    }
+
+    public AuthenticationFlowModel getRegistrationFlow() {
+        return registrationFlow;
+    }
+
+    public AuthenticationFlowModel getDirectGrantFlow() {
+        return directGrantFlow;
+    }
+
+    public AuthenticationFlowModel getResetCredentialsFlow() {
+        return resetCredentialsFlow;
+    }
+
+    public AuthenticationFlowModel getClientAuthenticationFlow() {
+        return clientAuthenticationFlow;
     }
 }

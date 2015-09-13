@@ -7,11 +7,9 @@ import org.keycloak.models.UserModel;
 import org.keycloak.util.MultivaluedHashMap;
 
 import java.io.Serializable;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -31,6 +29,7 @@ public class CachedUser implements Serializable {
     private boolean enabled;
     private boolean totp;
     private String federationLink;
+    private String serviceAccountClientLink;
     private MultivaluedHashMap<String, String> attributes = new MultivaluedHashMap<>();
     private Set<String> requiredActions = new HashSet<>();
     private Set<String> roleMappings = new HashSet<String>();
@@ -47,8 +46,9 @@ public class CachedUser implements Serializable {
         this.emailVerified = user.isEmailVerified();
         this.credentials.addAll(user.getCredentialsDirectly());
         this.enabled = user.isEnabled();
-        this.totp = user.isTotp();
+        this.totp = user.isOtpEnabled();
         this.federationLink = user.getFederationLink();
+        this.serviceAccountClientLink = user.getServiceAccountClientLink();
         this.requiredActions.addAll(user.getRequiredActions());
         for (RoleModel role : user.getRoleMappings()) {
             roleMappings.add(role.getId());
@@ -113,5 +113,9 @@ public class CachedUser implements Serializable {
 
     public String getFederationLink() {
         return federationLink;
+    }
+
+    public String getServiceAccountClientLink() {
+        return serviceAccountClientLink;
     }
 }

@@ -5,7 +5,7 @@ var module = angular.module('keycloak.services', [ 'ngResource', 'ngRoute' ]);
 module.service('Dialog', function($modal) {
 	var dialog = {};
 
-    var openDialog = function(title, message, btns) {
+    var openDialog = function(title, message, btns, template) {
         var controller = function($scope, $modalInstance, title, message, btns) {
             $scope.title = title;
             $scope.message = message;
@@ -20,7 +20,7 @@ module.service('Dialog', function($modal) {
         };
 
         return $modal.open({
-            templateUrl: resourceUrl + '/templates/kc-modal.html',
+            templateUrl: resourceUrl + template,
             controller: controller,
             resolve: {
                 title: function() {
@@ -56,7 +56,7 @@ module.service('Dialog', function($modal) {
             }
         }
 
-        openDialog(title, msg, btns).then(success);
+        openDialog(title, msg, btns, '/templates/kc-modal.html').then(success);
 	}
 
     dialog.confirmGenerateKeys = function(name, type, success) {
@@ -73,7 +73,7 @@ module.service('Dialog', function($modal) {
             }
         }
 
-        openDialog(title, msg, btns).then(success);
+        openDialog(title, msg, btns, '/templates/kc-modal.html').then(success);
     }
 
     dialog.confirm = function(title, message, success, cancel) {
@@ -88,10 +88,49 @@ module.service('Dialog', function($modal) {
             }
         }
 
-        openDialog(title, message, btns).then(success, cancel);
+        openDialog(title, message, btns, '/templates/kc-modal.html').then(success, cancel);
     }
 
-	return dialog
+    dialog.message = function(title, message, success, cancel) {
+        var btns = {
+            ok: {
+                label: "Ok",
+                cssClass: 'btn btn-default'
+            }
+        }
+
+        openDialog(title, message, btns, '/templates/kc-modal-message.html').then(success, cancel);
+    }
+
+    return dialog
+});
+
+module.service('CopyDialog', function($modal) {
+    var dialog = {};
+    dialog.open = function (title, suggested, success) {
+        var controller = function($scope, $modalInstance, title) {
+            $scope.title = title;
+            $scope.name = { value: 'Copy of ' + suggested };
+            $scope.ok = function () {
+                console.log('ok with name: ' + $scope.name);
+                $modalInstance.close();
+                success($scope.name.value);
+            };
+            $scope.cancel = function () {
+                $modalInstance.dismiss('cancel');
+            };
+        }
+        $modal.open({
+            templateUrl: resourceUrl + '/templates/kc-copy.html',
+            controller: controller,
+            resolve: {
+                title: function() {
+                    return title;
+                }
+            }
+        });
+    };
+    return dialog;
 });
 
 module.factory('Notifications', function($rootScope, $timeout) {
@@ -186,8 +225,22 @@ module.factory('RealmAdminEvents', function($resource) {
     });
 });
 
+module.factory('BruteForce', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/attack-detection/brute-force/usernames', {
+        realm : '@realm'
+    });
+});
+
+module.factory('BruteForceUser', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/attack-detection/brute-force/usernames/:username', {
+        realm : '@realm',
+        username : '@username'
+    });
+});
+
+
 module.factory('RequiredActions', function($resource) {
-    return $resource(authUrl + '/admin/realms/:id/authentication/required-actions/:alias', {
+    return $resource(authUrl + '/admin/realms/:realm/authentication/required-actions/:alias', {
         realm : '@realm',
         alias : '@alias'
     }, {
@@ -197,14 +250,43 @@ module.factory('RequiredActions', function($resource) {
     });
 });
 
+module.factory('UnregisteredRequiredActions', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/authentication/unregistered-required-actions', {
+        realm : '@realm'
+    });
+});
+
+module.factory('RegisterRequiredAction', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/authentication/register-required-action', {
+        realm : '@realm'
+    });
+});
+
 module.factory('RealmLDAPConnectionTester', function($resource) {
     return $resource(authUrl + '/admin/realms/:realm/testLDAPConnection');
 });
 
-module.factory('ServerInfo', function($resource) {
-    return $resource(authUrl + '/admin/serverinfo');
-});
+module.service('ServerInfo', function($resource, $q, $http) {
+    var info = {};
+    var delay = $q.defer();
 
+    $http.get(authUrl + '/admin/serverinfo').success(function(data) {
+        info = data;
+        delay.resolve(info);
+    });
+
+    return {
+        get: function() {
+            return info;
+        },
+        reload: function() {
+            $http.get(authUrl + '/admin/serverinfo').success(function(data) {
+                angular.copy(data, info);
+            });
+        },
+        promise: delay.promise
+    }
+});
 
 
 module.factory('ClientProtocolMapper', function($resource) {
@@ -356,16 +438,18 @@ module.factory('UserCredentials', function($resource) {
         }
     }).update;
 
-    credentials.resetPasswordEmail = $resource(authUrl + '/admin/realms/:realm/users/:userId/reset-password-email', {
+    return credentials;
+});
+
+module.factory('UserExecuteActionsEmail', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/users/:userId/execute-actions-email', {
         realm : '@realm',
         userId : '@userId'
     }, {
         update : {
             method : 'PUT'
         }
-    }).update;
-
-    return credentials;
+    });
 });
 
 module.factory('RealmRoleMapping', function($resource) {
@@ -587,6 +671,7 @@ function roleControl($scope, realm, role, roles, clients,
                     }
                 }
                 $scope.selectedRealmRoles = [];
+                Notifications.success("Role added to composite.");
             });
     };
 
@@ -603,6 +688,7 @@ function roleControl($scope, realm, role, roles, clients,
                     }
                 }
                 $scope.selectedRealmMappings = [];
+                Notifications.success("Role removed from composite.");
             });
     };
 
@@ -860,7 +946,7 @@ module.factory('ClientInstallationJBoss', function($resource) {
     }
 });
 
-module.factory('ClientCredentials', function($resource) {
+module.factory('ClientSecret', function($resource) {
     return $resource(authUrl + '/admin/realms/:realm/clients/:client/client-secret', {
         realm : '@realm',
         client : '@client'
@@ -880,6 +966,13 @@ module.factory('ClientOrigins', function($resource) {
             method : 'PUT',
             isArray : true
         }
+    });
+});
+
+module.factory('ClientServiceAccountUser', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/clients/:client/service-account-user', {
+        realm : '@realm',
+        client : '@client'
     });
 });
 
@@ -1095,7 +1188,7 @@ module.factory('IdentityProviderMapper', function($resource) {
     });
 });
 
-module.factory('AuthenticationExecutions', function($resource) {
+module.factory('AuthenticationFlowExecutions', function($resource) {
     return $resource(authUrl + '/admin/realms/:realm/authentication/flows/:alias/executions', {
         realm : '@realm',
         alias : '@alias'
@@ -1106,15 +1199,67 @@ module.factory('AuthenticationExecutions', function($resource) {
     });
 });
 
+module.factory('CreateExecutionFlow', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/authentication/flows/:alias/executions/flow', {
+        realm : '@realm',
+        alias : '@alias'
+    });
+});
+
+module.factory('CreateExecution', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/authentication/flows/:alias/executions/execution', {
+        realm : '@realm',
+        alias : '@alias'
+    });
+});
+
 module.factory('AuthenticationFlows', function($resource) {
-    return $resource(authUrl + '/admin/realms/:realm/authentication/flows', {
+    return $resource(authUrl + '/admin/realms/:realm/authentication/flows/:flow', {
+        realm : '@realm',
+        flow: '@flow'
+    });
+});
+
+module.factory('AuthenticationFormProviders', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/authentication/form-providers', {
         realm : '@realm'
+    });
+});
+
+module.factory('AuthenticationFormActionProviders', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/authentication/form-action-providers', {
+        realm : '@realm'
+    });
+});
+
+module.factory('AuthenticatorProviders', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/authentication/authenticator-providers', {
+        realm : '@realm'
+    });
+});
+
+module.factory('ClientAuthenticatorProviders', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/authentication/client-authenticator-providers', {
+        realm : '@realm'
+    });
+});
+
+
+module.factory('AuthenticationFlowsCopy', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/authentication/flows/:alias/copy', {
+        realm : '@realm',
+        alias : '@alias'
     });
 });
 module.factory('AuthenticationConfigDescription', function($resource) {
     return $resource(authUrl + '/admin/realms/:realm/authentication/config-description/:provider', {
         realm : '@realm',
         provider: '@provider'
+    });
+});
+module.factory('PerClientAuthenticationConfigDescription', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/authentication/per-client-config-description', {
+        realm : '@realm'
     });
 });
 
@@ -1134,6 +1279,33 @@ module.factory('AuthenticationExecutionConfig', function($resource) {
         execution: '@execution'
     });
 });
+
+module.factory('AuthenticationExecution', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/authentication/executions/:execution', {
+        realm : '@realm',
+        execution : '@execution'
+    }, {
+        update : {
+            method : 'PUT'
+        }
+    });
+});
+
+module.factory('AuthenticationExecutionRaisePriority', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/authentication/executions/:execution/raise-priority', {
+        realm : '@realm',
+        execution : '@execution'
+    });
+});
+
+module.factory('AuthenticationExecutionLowerPriority', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/authentication/executions/:execution/lower-priority', {
+        realm : '@realm',
+        execution : '@execution'
+    });
+});
+
+
 
 module.service('SelectRoleDialog', function($modal) {
     var dialog = {};

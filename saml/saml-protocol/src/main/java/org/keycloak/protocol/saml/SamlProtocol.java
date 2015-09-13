@@ -22,6 +22,7 @@ import org.keycloak.models.UserModel;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.protocol.LoginProtocol;
 import org.keycloak.protocol.ProtocolMapper;
+import org.keycloak.protocol.RestartLoginCookie;
 import org.keycloak.protocol.saml.mappers.SAMLAttributeStatementMapper;
 import org.keycloak.protocol.saml.mappers.SAMLLoginResponseMapper;
 import org.keycloak.protocol.saml.mappers.SAMLRoleListMapper;
@@ -40,13 +41,17 @@ import org.w3c.dom.Document;
 
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
+import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.security.PublicKey;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -69,8 +74,10 @@ public class SamlProtocol implements LoginProtocol {
     public static final String SAML_SINGLE_LOGOUT_SERVICE_URL_REDIRECT_ATTRIBUTE = "saml_single_logout_service_url_redirect";
     public static final String SAML_FORCE_NAME_ID_FORMAT_ATTRIBUTE = "saml_force_name_id_format";
     public static final String SAML_NAME_ID_FORMAT_ATTRIBUTE = "saml_name_id_format";
+    public static final String SAML_CANONICALIZATION_METHOD_ATTRIBUTE = "saml_signature_canonicalization_method";
     public static final String LOGIN_PROTOCOL = "saml";
     public static final String SAML_BINDING = "saml_binding";
+    public static final String SAML_IDP_INITIATED_LOGIN = "saml_idp_initiated_login";
     public static final String SAML_POST_BINDING = "post";
     public static final String SAML_REDIRECT_BINDING = "get";
     public static final String SAML_SERVER_SIGNATURE = "saml.server.signature";
@@ -83,12 +90,15 @@ public class SamlProtocol implements LoginProtocol {
     public static final String SAML_LOGOUT_BINDING = "saml.logout.binding";
     public static final String SAML_LOGOUT_REQUEST_ID = "SAML_LOGOUT_REQUEST_ID";
     public static final String SAML_LOGOUT_RELAY_STATE = "SAML_LOGOUT_RELAY_STATE";
+    public static final String SAML_LOGOUT_CANONICALIZATION = "SAML_LOGOUT_CANONICALIZATION";
     public static final String SAML_LOGOUT_BINDING_URI = "SAML_LOGOUT_BINDING_URI";
     public static final String SAML_LOGOUT_SIGNATURE_ALGORITHM = "saml.logout.signature.algorithm";
     public static final String SAML_NAME_ID = "SAML_NAME_ID";
     public static final String SAML_NAME_ID_FORMAT = "SAML_NAME_ID_FORMAT";
     public static final String SAML_DEFAULT_NAMEID_FORMAT = JBossSAMLURIConstants.NAMEID_FORMAT_UNSPECIFIED.get();
     public static final String SAML_PERSISTENT_NAME_ID_FOR = "saml.persistent.name.id.for";
+    public static final String SAML_IDP_INITIATED_SSO_RELAY_STATE = "saml_idp_initiated_sso_relay_state";
+    public static final String SAML_IDP_INITIATED_SSO_URL_NAME = "saml_idp_initiated_sso_url_name";
 
     protected KeycloakSession session;
 
@@ -134,9 +144,20 @@ public class SamlProtocol implements LoginProtocol {
 
     @Override
     public Response cancelLogin(ClientSessionModel clientSession) {
-        Response error = getErrorResponse(clientSession, JBossSAMLURIConstants.STATUS_REQUEST_DENIED.get());
-        session.sessions().removeClientSession(realm, clientSession);
-        return error;
+        RestartLoginCookie.expireRestartCookie(realm, session.getContext().getConnection(), uriInfo);
+        if ("true".equals(clientSession.getClient().getAttribute(SAML_IDP_INITIATED_LOGIN))) {
+            UriBuilder builder = RealmsResource.protocolUrl(uriInfo).path(SamlService.class, "idpInitiatedSSO");
+            Map<String, String> params = new HashMap<>();
+            params.put("realm", realm.getName());
+            params.put("protocol", LOGIN_PROTOCOL);
+            params.put("client", clientSession.getClient().getAttribute(SAML_IDP_INITIATED_SSO_URL_NAME));
+            session.sessions().removeClientSession(realm, clientSession);
+            URI redirect = builder.buildFromMap(params);
+            return Response.status(302).location(redirect).build();
+        } else {
+            session.sessions().removeClientSession(realm, clientSession);
+            return getErrorResponse(clientSession, JBossSAMLURIConstants.STATUS_REQUEST_DENIED.get());
+        }
     }
 
     protected String getResponseIssuer(RealmModel realm) {
@@ -319,11 +340,19 @@ public class SamlProtocol implements LoginProtocol {
         bindingBuilder.relayState(relayState);
 
         if (requiresRealmSignature(client)) {
+            String canonicalization = client.getAttribute(SAML_CANONICALIZATION_METHOD_ATTRIBUTE);
+            if (canonicalization != null) {
+                bindingBuilder.canonicalizationMethod(canonicalization);
+            }
             bindingBuilder.signatureAlgorithm(getSignatureAlgorithm(client))
                    .signWith(realm.getPrivateKey(), realm.getPublicKey(), realm.getCertificate())
                    .signDocument();
         }
         if (requiresAssertionSignature(client)) {
+            String canonicalization = client.getAttribute(SAML_CANONICALIZATION_METHOD_ATTRIBUTE);
+            if (canonicalization != null) {
+                bindingBuilder.canonicalizationMethod(canonicalization);
+            }
             bindingBuilder.signatureAlgorithm(getSignatureAlgorithm(client))
                     .signWith(realm.getPrivateKey(), realm.getPublicKey(), realm.getCertificate())
                     .signAssertions();
@@ -426,7 +455,14 @@ public class SamlProtocol implements LoginProtocol {
 
     @Override
     public Response consentDenied(ClientSessionModel clientSession) {
-        return getErrorResponse(clientSession, JBossSAMLURIConstants.STATUS_REQUEST_DENIED.get());
+        RestartLoginCookie.expireRestartCookie(realm, session.getContext().getConnection(), uriInfo);
+        if ("true".equals(clientSession.getClient().getAttribute(SAML_IDP_INITIATED_LOGIN))) {
+            session.sessions().removeClientSession(realm, clientSession);
+            return ErrorPage.error(session, Messages.CONSENT_DENIED);
+        } else {
+            session.sessions().removeClientSession(realm, clientSession);
+            return getErrorResponse(clientSession, JBossSAMLURIConstants.STATUS_REQUEST_DENIED.get());
+        }
     }
 
     public static String getLogoutServiceUrl(UriInfo uriInfo, ClientModel client, String bindingType) {
@@ -487,6 +523,10 @@ public class SamlProtocol implements LoginProtocol {
         String signingAlgorithm = userSession.getNote(SAML_LOGOUT_SIGNATURE_ALGORITHM);
         if (signingAlgorithm != null) {
             SignatureAlgorithm algorithm = SignatureAlgorithm.valueOf(signingAlgorithm);
+            String canonicalization = userSession.getNote(SAML_LOGOUT_CANONICALIZATION);
+            if (canonicalization != null) {
+                builder.canonicalizationMethod(canonicalization);
+            }
             builder.signatureAlgorithm(algorithm)
                     .signWith(realm.getPrivateKey(), realm.getPublicKey(), realm.getCertificate())
                     .signDocument();

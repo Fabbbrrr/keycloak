@@ -13,6 +13,8 @@ public interface Errors {
     String CLIENT_DISABLED = "client_disabled";
     String INVALID_CLIENT_CREDENTIALS = "invalid_client_credentials";
     String INVALID_CLIENT = "invalid_client";
+    String CONSENT_DENIED = "consent_denied";
+    String RESOLVE_REQUIRED_ACTIONS = "resolve_required_actions";
 
     String USER_NOT_FOUND = "user_not_found";
     String USER_DISABLED = "user_disabled";
@@ -36,6 +38,7 @@ public interface Errors {
     String EXPIRED_CODE = "expired_code";
 
     String REGISTRATION_DISABLED = "registration_disabled";
+    String RESET_CREDENTIAL_DISABLED = "reset_credential_disabled";
 
     String REJECTED_BY_USER = "rejected_by_user";
 

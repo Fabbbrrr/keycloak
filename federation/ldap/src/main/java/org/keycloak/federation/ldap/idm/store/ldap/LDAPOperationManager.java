@@ -240,7 +240,7 @@ public class LDAPOperationManager {
 
                 filter = "(&(objectClass=*)(" + getUuidAttributeName() + LDAPConstants.EQUAL + LDAPUtil.convertObjectGUIToByteString(objectGUID) + "))";
             } catch (NamingException ne) {
-                return filter;
+                filter = null;
             }
         }
 
@@ -327,8 +327,13 @@ public class LDAPOperationManager {
         InitialContext authCtx = null;
 
         try {
+            if (password == null || password.isEmpty()) {
+                throw new Exception("Empty password used");
+            }
+
             Hashtable<String, Object> env = new Hashtable<String, Object>(this.connectionProperties);
 
+            env.put(Context.SECURITY_AUTHENTICATION, LDAPConstants.AUTH_TYPE_SIMPLE);
             env.put(Context.SECURITY_PRINCIPAL, dn);
             env.put(Context.SECURITY_CREDENTIALS, password);
 
@@ -435,7 +440,7 @@ public class LDAPOperationManager {
     public String decodeEntryUUID(final Object entryUUID) {
         String id;
 
-        if (this.config.isActiveDirectory()) {
+        if (this.config.isActiveDirectory() && entryUUID instanceof byte[]) {
             id = LDAPUtil.decodeObjectGUID((byte[]) entryUUID);
         } else {
             id = entryUUID.toString();

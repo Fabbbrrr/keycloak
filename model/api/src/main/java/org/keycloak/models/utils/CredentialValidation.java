@@ -2,6 +2,7 @@ package org.keycloak.models.utils;
 
 import org.keycloak.jose.jws.JWSInput;
 import org.keycloak.jose.jws.crypto.RSAProvider;
+import org.keycloak.models.OTPPolicy;
 import org.keycloak.models.PasswordPolicy;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserCredentialModel;
@@ -37,29 +38,34 @@ public class CredentialValidation {
      * @return
      */
     public static boolean validPassword(RealmModel realm, UserModel user, String password) {
-        boolean validated = false;
         UserCredentialValueModel passwordCred = null;
         for (UserCredentialValueModel cred : user.getCredentialsDirectly()) {
             if (cred.getType().equals(UserCredentialModel.PASSWORD)) {
-                validated = new Pbkdf2PasswordEncoder(cred.getSalt()).verify(password, cred.getValue(), cred.getHashIterations());
                 passwordCred = cred;
             }
         }
+        if (passwordCred == null) return false;
+
+        return validateHashedCredential(realm, user, password, passwordCred);
+
+    }
+
+    public static boolean validateHashedCredential(RealmModel realm, UserModel user, String unhashedCredValue, UserCredentialValueModel credential) {
+        boolean validated = new Pbkdf2PasswordEncoder(credential.getSalt()).verify(unhashedCredValue, credential.getValue(), credential.getHashIterations());
         if (validated) {
             int iterations = hashIterations(realm);
-            if (iterations > -1 && iterations != passwordCred.getHashIterations()) {
+            if (iterations > -1 && iterations != credential.getHashIterations()) {
                 UserCredentialValueModel newCred = new UserCredentialValueModel();
-                newCred.setType(passwordCred.getType());
-                newCred.setDevice(passwordCred.getDevice());
-                newCred.setSalt(passwordCred.getSalt());
+                newCred.setType(credential.getType());
+                newCred.setDevice(credential.getDevice());
+                newCred.setSalt(credential.getSalt());
                 newCred.setHashIterations(iterations);
-                newCred.setValue(new Pbkdf2PasswordEncoder(newCred.getSalt()).encode(password, iterations));
+                newCred.setValue(new Pbkdf2PasswordEncoder(newCred.getSalt()).encode(unhashedCredValue, iterations));
                 user.updateCredentialDirectly(newCred);
             }
 
         }
         return validated;
-
     }
 
     public static boolean validPasswordToken(RealmModel realm, UserModel user, String encodedPasswordToken) {
@@ -84,11 +90,43 @@ public class CredentialValidation {
         }
     }
 
+    public static boolean validHOTP(RealmModel realm, UserModel user, String otp) {
+        UserCredentialValueModel passwordCred = null;
+        OTPPolicy policy = realm.getOTPPolicy();
+        HmacOTP validator = new HmacOTP(policy.getDigits(), policy.getAlgorithm(), policy.getLookAheadWindow());
+        for (UserCredentialValueModel cred : user.getCredentialsDirectly()) {
+            if (cred.getType().equals(UserCredentialModel.HOTP)) {
+                int counter = validator.validateHOTP(otp, cred.getValue(), cred.getCounter());
+                if (counter < 0) return false;
+                cred.setCounter(counter);
+                user.updateCredentialDirectly(cred);
+                return true;
+            }
+        }
+        return false;
+
+    }
+
+    public static boolean validOTP(RealmModel realm, String token, String secret) {
+        OTPPolicy policy = realm.getOTPPolicy();
+        if (policy.getType().equals(UserCredentialModel.TOTP)) {
+            TimeBasedOTP validator = new TimeBasedOTP(policy.getAlgorithm(), policy.getDigits(), policy.getPeriod(), policy.getLookAheadWindow());
+            return validator.validateTOTP(token, secret.getBytes());
+        } else {
+            HmacOTP validator = new HmacOTP(policy.getDigits(), policy.getAlgorithm(), policy.getLookAheadWindow());
+            int c = validator.validateHOTP(token, secret, policy.getInitialCounter());
+            return c > -1;
+        }
+
+    }
+
     public static boolean validTOTP(RealmModel realm, UserModel user, String otp) {
         UserCredentialValueModel passwordCred = null;
+        OTPPolicy policy = realm.getOTPPolicy();
+        TimeBasedOTP validator = new TimeBasedOTP(policy.getAlgorithm(), policy.getDigits(), policy.getPeriod(), policy.getLookAheadWindow());
         for (UserCredentialValueModel cred : user.getCredentialsDirectly()) {
             if (cred.getType().equals(UserCredentialModel.TOTP)) {
-                if (new TimeBasedOTP().validate(otp, cred.getValue().getBytes())) {
+                if (validator.validateTOTP(otp, cred.getValue().getBytes())) {
                     return true;
                 }
             }
@@ -147,6 +185,10 @@ public class CredentialValidation {
             }
         } else if (credential.getType().equals(UserCredentialModel.TOTP)) {
             if (!validTOTP(realm, user, credential.getValue())) {
+                return false;
+            }
+        } else if (credential.getType().equals(UserCredentialModel.HOTP)) {
+            if (!validHOTP(realm, user, credential.getValue())) {
                 return false;
             }
         } else if (credential.getType().equals(UserCredentialModel.SECRET)) {

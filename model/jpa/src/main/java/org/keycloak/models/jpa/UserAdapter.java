@@ -1,6 +1,7 @@
 package org.keycloak.models.jpa;
 
 import org.keycloak.models.ClientModel;
+import org.keycloak.models.OTPPolicy;
 import org.keycloak.models.ProtocolMapperModel;
 import org.keycloak.models.UserConsentModel;
 import org.keycloak.models.ModelDuplicateException;
@@ -74,6 +75,7 @@ public class UserAdapter implements UserModel {
 
     @Override
     public void setUsername(String username) {
+        username = KeycloakModelUtils.toLowerCaseSafe(username);
         user.setUsername(username);
     }
 
@@ -93,7 +95,7 @@ public class UserAdapter implements UserModel {
     }
 
     @Override
-    public boolean isTotp() {
+    public boolean isOtpEnabled() {
         return user.isTotp();
     }
 
@@ -266,6 +268,7 @@ public class UserAdapter implements UserModel {
 
     @Override
     public void setEmail(String email) {
+        email = KeycloakModelUtils.toLowerCaseSafe(email);
         user.setEmail(email);
     }
 
@@ -280,7 +283,7 @@ public class UserAdapter implements UserModel {
     }
 
     @Override
-    public void setTotp(boolean totp) {
+    public void setOtpEnabled(boolean totp) {
         user.setTotp(totp);
     }
 
@@ -289,6 +292,9 @@ public class UserAdapter implements UserModel {
 
         if (cred.getType().equals(UserCredentialModel.PASSWORD)) {
             updatePasswordCredential(cred);
+        } else if (UserCredentialModel.isOtp(cred.getType())){
+            updateOtpCredential(cred);
+
         } else {
             CredentialEntity credentialEntity = getCredentialEntity(user, cred.getType());
 
@@ -303,6 +309,33 @@ public class UserAdapter implements UserModel {
         }
         em.flush();
     }
+
+    private void updateOtpCredential(UserCredentialModel cred) {
+        CredentialEntity credentialEntity = getCredentialEntity(user, cred.getType());
+
+        if (credentialEntity == null) {
+            credentialEntity = setCredentials(user, cred);
+
+            credentialEntity.setValue(cred.getValue());
+            OTPPolicy otpPolicy = realm.getOTPPolicy();
+            credentialEntity.setAlgorithm(otpPolicy.getAlgorithm());
+            credentialEntity.setDigits(otpPolicy.getDigits());
+            credentialEntity.setCounter(otpPolicy.getInitialCounter());
+            credentialEntity.setPeriod(otpPolicy.getPeriod());
+            em.persist(credentialEntity);
+            user.getCredentials().add(credentialEntity);
+        } else {
+            OTPPolicy policy = realm.getOTPPolicy();
+            credentialEntity.setDigits(policy.getDigits());
+            credentialEntity.setCounter(policy.getInitialCounter());
+            credentialEntity.setAlgorithm(policy.getAlgorithm());
+            credentialEntity.setValue(cred.getValue());
+            credentialEntity.setPeriod(policy.getPeriod());
+        }
+    }
+
+
+
 
     private void updatePasswordCredential(UserCredentialModel cred) {
         CredentialEntity credentialEntity = getCredentialEntity(user, cred.getType());
@@ -416,6 +449,10 @@ public class UserAdapter implements UserModel {
                 credModel.setCreatedDate(credEntity.getCreatedDate());
                 credModel.setSalt(credEntity.getSalt());
                 credModel.setHashIterations(credEntity.getHashIterations());
+                credModel.setCounter(credEntity.getCounter());
+                credModel.setAlgorithm(credEntity.getAlgorithm());
+                credModel.setDigits(credEntity.getDigits());
+                credModel.setPeriod(credEntity.getPeriod());
 
                 result.add(credModel);
             }
@@ -442,6 +479,10 @@ public class UserAdapter implements UserModel {
         credentialEntity.setSalt(credModel.getSalt());
         credentialEntity.setDevice(credModel.getDevice());
         credentialEntity.setHashIterations(credModel.getHashIterations());
+        credentialEntity.setCounter(credModel.getCounter());
+        credentialEntity.setAlgorithm(credModel.getAlgorithm());
+        credentialEntity.setDigits(credModel.getDigits());
+        credentialEntity.setPeriod(credModel.getPeriod());
 
         em.flush();
     }
@@ -539,6 +580,16 @@ public class UserAdapter implements UserModel {
     @Override
     public void setFederationLink(String link) {
         user.setFederationLink(link);
+    }
+
+    @Override
+    public String getServiceAccountClientLink() {
+        return user.getServiceAccountClientLink();
+    }
+
+    @Override
+    public void setServiceAccountClientLink(String clientInternalId) {
+        user.setServiceAccountClientLink(clientInternalId);
     }
 
     @Override

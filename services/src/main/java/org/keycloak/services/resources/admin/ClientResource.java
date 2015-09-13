@@ -19,6 +19,7 @@ import org.keycloak.models.utils.RepresentationToModel;
 import org.keycloak.representations.adapters.action.GlobalRequestResult;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.CredentialRepresentation;
+import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.representations.idm.UserSessionRepresentation;
 import org.keycloak.services.managers.ClientManager;
 import org.keycloak.services.managers.RealmManager;
@@ -101,6 +102,10 @@ public class ClientResource {
         auth.requireManage();
 
         try {
+            if (rep.isServiceAccountsEnabled() && !client.isServiceAccountsEnabled()) {
+                new ClientManager(new RealmManager(session)).enableServiceAccount(client);;
+            }
+
             RepresentationToModel.updateClient(rep, client);
             adminEvent.operation(OperationType.UPDATE).resourcePath(uriInfo).representation(rep).success();
             return Response.noContent().build();
@@ -289,6 +294,31 @@ public class ClientResource {
     }
 
     /**
+     * Returns user dedicated to this service account
+     *
+     * @return
+     */
+    @Path("service-account-user")
+    @GET
+    @NoCache
+    @Produces(MediaType.APPLICATION_JSON)
+    public UserRepresentation getServiceAccountUser() {
+        auth.requireView();
+
+        UserModel user = session.users().getUserByServiceAccountClient(client);
+        if (user == null) {
+            if (client.isServiceAccountsEnabled()) {
+                new ClientManager(new RealmManager(session)).enableServiceAccount(client);
+                user = session.users().getUserByServiceAccountClient(client);
+            } else {
+                throw new BadRequestException("Service account not enabled for the client '" + client.getClientId() + "'");
+            }
+        }
+
+        return ModelToRepresentation.toRepresentation(user);
+    }
+
+    /**
      * If the client has an admin URL, push the client's revocation policy to it.
      *
      */
@@ -406,7 +436,7 @@ public class ClientResource {
 
         Integer time = client.getRegisteredNodes().get(node);
         if (time == null) {
-            throw new NotFoundException("Client does not have a node " + node);
+            throw new NotFoundException("Client does not have node ");
         }
         client.unregisterNode(node);
         adminEvent.operation(OperationType.DELETE).resourcePath(uriInfo).success();

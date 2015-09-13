@@ -30,7 +30,7 @@ public interface UserModel {
 
     boolean isEnabled();
 
-    boolean isTotp();
+    boolean isOtpEnabled();
 
     void setEnabled(boolean enabled);
 
@@ -86,7 +86,7 @@ public interface UserModel {
 
     void setEmailVerified(boolean verified);
 
-    void setTotp(boolean totp);
+    void setOtpEnabled(boolean totp);
 
     void updateCredential(UserCredentialModel cred);
 
@@ -103,6 +103,9 @@ public interface UserModel {
 
     String getFederationLink();
     void setFederationLink(String link);
+
+    String getServiceAccountClientLink();
+    void setServiceAccountClientLink(String clientInternalId);
 
     void addConsent(UserConsentModel consent);
     UserConsentModel getConsentByClient(String clientInternalId);

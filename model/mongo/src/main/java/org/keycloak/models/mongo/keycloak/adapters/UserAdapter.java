@@ -7,6 +7,7 @@ import com.mongodb.QueryBuilder;
 
 import org.keycloak.connections.mongo.api.context.MongoStoreInvocationContext;
 import org.keycloak.models.ClientModel;
+import org.keycloak.models.OTPPolicy;
 import org.keycloak.models.ProtocolMapperModel;
 import org.keycloak.models.UserConsentModel;
 import org.keycloak.models.KeycloakSession;
@@ -23,6 +24,7 @@ import org.keycloak.models.entities.UserConsentEntity;
 import org.keycloak.models.mongo.keycloak.entities.MongoUserConsentEntity;
 import org.keycloak.models.mongo.keycloak.entities.MongoUserEntity;
 import org.keycloak.models.mongo.utils.MongoModelUtils;
+import org.keycloak.models.utils.HmacOTP;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.models.utils.Pbkdf2PasswordEncoder;
 import org.keycloak.util.Time;
@@ -67,6 +69,8 @@ public class UserAdapter extends AbstractMongoAdapter<MongoUserEntity> implement
 
     @Override
     public void setUsername(String username) {
+        username = KeycloakModelUtils.toLowerCaseSafe(username);
+
         user.setUsername(username);
         updateUser();
     }
@@ -121,6 +125,8 @@ public class UserAdapter extends AbstractMongoAdapter<MongoUserEntity> implement
 
     @Override
     public void setEmail(String email) {
+        email = KeycloakModelUtils.toLowerCaseSafe(email);
+
         user.setEmail(email);
         updateUser();
     }
@@ -183,7 +189,7 @@ public class UserAdapter extends AbstractMongoAdapter<MongoUserEntity> implement
 
     @Override
     public Map<String, List<String>> getAttributes() {
-        return user.getAttributes()==null ? Collections.<String, List<String>>emptyMap() : Collections.unmodifiableMap((Map)user.getAttributes());
+        return user.getAttributes()==null ? Collections.<String, List<String>>emptyMap() : Collections.unmodifiableMap((Map) user.getAttributes());
     }
 
     public MongoUserEntity getUser() {
@@ -223,12 +229,12 @@ public class UserAdapter extends AbstractMongoAdapter<MongoUserEntity> implement
     }
 
     @Override
-    public boolean isTotp() {
+    public boolean isOtpEnabled() {
         return user.isTotp();
     }
 
     @Override
-    public void setTotp(boolean totp) {
+    public void setOtpEnabled(boolean totp) {
         user.setTotp(totp);
         updateUser();
     }
@@ -238,6 +244,8 @@ public class UserAdapter extends AbstractMongoAdapter<MongoUserEntity> implement
 
         if (cred.getType().equals(UserCredentialModel.PASSWORD)) {
             updatePasswordCredential(cred);
+        } else if (UserCredentialModel.isOtp(cred.getType())){
+            updateOtpCredential(cred);
         } else {
             CredentialEntity credentialEntity = getCredentialEntity(user, cred.getType());
 
@@ -251,6 +259,29 @@ public class UserAdapter extends AbstractMongoAdapter<MongoUserEntity> implement
         }
         getMongoStore().updateEntity(user, invocationContext);
     }
+
+    private void updateOtpCredential(UserCredentialModel cred) {
+        CredentialEntity credentialEntity = getCredentialEntity(user, cred.getType());
+
+        if (credentialEntity == null) {
+            credentialEntity = setCredentials(user, cred);
+            credentialEntity.setValue(cred.getValue());
+            OTPPolicy otpPolicy = realm.getOTPPolicy();
+            credentialEntity.setAlgorithm(otpPolicy.getAlgorithm());
+            credentialEntity.setDigits(otpPolicy.getDigits());
+            credentialEntity.setCounter(otpPolicy.getInitialCounter());
+            credentialEntity.setPeriod(otpPolicy.getPeriod());
+            user.getCredentials().add(credentialEntity);
+        } else {
+            credentialEntity.setValue(cred.getValue());
+            OTPPolicy policy = realm.getOTPPolicy();
+            credentialEntity.setDigits(policy.getDigits());
+            credentialEntity.setCounter(policy.getInitialCounter());
+            credentialEntity.setAlgorithm(policy.getAlgorithm());
+            credentialEntity.setPeriod(policy.getPeriod());
+        }
+    }
+
 
     private void updatePasswordCredential(UserCredentialModel cred) {
         CredentialEntity credentialEntity = getCredentialEntity(user, cred.getType());
@@ -358,6 +389,28 @@ public class UserAdapter extends AbstractMongoAdapter<MongoUserEntity> implement
             credModel.setValue(credEntity.getValue());
             credModel.setSalt(credEntity.getSalt());
             credModel.setHashIterations(credEntity.getHashIterations());
+            if (UserCredentialModel.isOtp(credEntity.getType())) {
+                credModel.setCounter(credEntity.getCounter());
+                if (credEntity.getAlgorithm() == null) {
+                    // for migration where these values would be null
+                    credModel.setAlgorithm(realm.getOTPPolicy().getAlgorithm());
+                } else {
+                    credModel.setAlgorithm(credEntity.getAlgorithm());
+                }
+                if (credEntity.getDigits() == 0) {
+                    // for migration where these values would be 0
+                    credModel.setDigits(realm.getOTPPolicy().getDigits());
+                } else {
+                    credModel.setDigits(credEntity.getDigits());
+                }
+
+                if (credEntity.getPeriod() == 0) {
+                    // for migration where these values would be 0
+                    credModel.setPeriod(realm.getOTPPolicy().getPeriod());
+                } else {
+                    credModel.setPeriod(credEntity.getPeriod());
+                }
+            }
 
             result.add(credModel);
         }
@@ -380,6 +433,10 @@ public class UserAdapter extends AbstractMongoAdapter<MongoUserEntity> implement
         credentialEntity.setSalt(credModel.getSalt());
         credentialEntity.setDevice(credModel.getDevice());
         credentialEntity.setHashIterations(credModel.getHashIterations());
+        credentialEntity.setCounter(credModel.getCounter());
+        credentialEntity.setAlgorithm(credModel.getAlgorithm());
+        credentialEntity.setDigits(credModel.getDigits());
+        credentialEntity.setPeriod(credModel.getPeriod());
 
 
         getMongoStore().updateEntity(user, invocationContext);
@@ -453,6 +510,17 @@ public class UserAdapter extends AbstractMongoAdapter<MongoUserEntity> implement
     @Override
     public void setFederationLink(String link) {
         user.setFederationLink(link);
+        updateUser();
+    }
+
+    @Override
+    public String getServiceAccountClientLink() {
+        return user.getServiceAccountClientLink();
+    }
+
+    @Override
+    public void setServiceAccountClientLink(String clientInternalId) {
+        user.setServiceAccountClientLink(clientInternalId);
         updateUser();
     }
 

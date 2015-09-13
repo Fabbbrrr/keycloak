@@ -3,7 +3,7 @@
     <parent>
         <artifactId>keycloak-parent</artifactId>
         <groupId>org.keycloak</groupId>
-        <version>1.4.0.Final-SNAPSHOT</version>
+        <version>1.5.0.Final-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -23,7 +23,16 @@
         <module>server-dist</module>
         <module>server-overlay</module>
         <module>src-dist</module>
-        <module>subsystem-war</module>
         <module>feature-packs</module>
     </modules>
+
+    <profiles>
+        <profile>
+            <id>jboss-release</id>
+            <modules>
+                <module>downloads</module>
+            </modules>
+        </profile>
+    </profiles>
+
 </project>

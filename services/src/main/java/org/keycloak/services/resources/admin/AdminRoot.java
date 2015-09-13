@@ -20,6 +20,7 @@ import org.keycloak.services.managers.AppAuthManager;
 import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.managers.RealmManager;
 import org.keycloak.services.resources.Cors;
+import org.keycloak.services.resources.admin.info.ServerInfoAdminResource;
 
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
@@ -100,7 +101,7 @@ public class AdminRoot {
     protected RealmModel locateRealm(String name, RealmManager realmManager) {
         RealmModel realm = realmManager.getRealmByName(name);
         if (realm == null) {
-            throw new NotFoundException("Realm " + name + " not found");
+            throw new NotFoundException("Realm not found.  Did you type in a bad URL?");
         }
         return realm;
     }

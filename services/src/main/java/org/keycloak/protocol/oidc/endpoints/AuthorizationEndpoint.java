@@ -19,6 +19,7 @@ import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.utils.DefaultAuthenticationFlows;
 import org.keycloak.models.utils.KeycloakModelUtils;
+import org.keycloak.protocol.RestartLoginCookie;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.utils.RedirectUtils;
 import org.keycloak.services.ErrorPageException;
@@ -26,6 +27,7 @@ import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.managers.ClientSessionCode;
 import org.keycloak.services.messages.Messages;
 import org.keycloak.services.Urls;
+import org.keycloak.services.resources.LoginActionsService;
 
 import javax.ws.rs.GET;
 import javax.ws.rs.core.Context;
@@ -79,6 +81,7 @@ public class AuthorizationEndpoint {
     private String scope;
     private String loginHint;
     private String prompt;
+    private String nonce;
     private String idpHint;
 
     private String legacyResponseType;
@@ -102,6 +105,7 @@ public class AuthorizationEndpoint {
         loginHint = params.getFirst(OIDCLoginProtocol.LOGIN_HINT_PARAM);
         prompt = params.getFirst(OIDCLoginProtocol.PROMPT_PARAM);
         idpHint = params.getFirst(AdapterConstants.KC_IDP_HINT);
+        nonce = params.getFirst(OIDCLoginProtocol.NONCE_PARAM);
 
         checkSsl();
         checkRealm();
@@ -225,6 +229,7 @@ public class AuthorizationEndpoint {
         clientSession.setNote(OIDCLoginProtocol.ISSUER, Urls.realmIssuer(uriInfo.getBaseUri(), realm.getName()));
 
         if (state != null) clientSession.setNote(OIDCLoginProtocol.STATE_PARAM, state);
+        if (nonce != null) clientSession.setNote(OIDCLoginProtocol.NONCE_PARAM, nonce);
         if (scope != null) clientSession.setNote(OIDCLoginProtocol.SCOPE_PARAM, scope);
         if (loginHint != null) clientSession.setNote(OIDCLoginProtocol.LOGIN_HINT_PARAM, loginHint);
         if (prompt != null) clientSession.setNote(OIDCLoginProtocol.PROMPT_PARAM, prompt);
@@ -258,10 +263,12 @@ public class AuthorizationEndpoint {
         }
         clientSession.setNote(Details.AUTH_TYPE, CODE_AUTH_TYPE);
 
-        AuthenticationFlowModel flow = realm.getFlowByAlias(DefaultAuthenticationFlows.BROWSER_FLOW);
+
+        AuthenticationFlowModel flow = realm.getBrowserFlow();
         String flowId = flow.getId();
         AuthenticationProcessor processor = new AuthenticationProcessor();
         processor.setClientSession(clientSession)
+                .setFlowPath(LoginActionsService.AUTHENTICATE_PATH)
                 .setFlowId(flowId)
                 .setConnection(clientConnection)
                 .setEventBuilder(event)
@@ -274,6 +281,9 @@ public class AuthorizationEndpoint {
         Response challenge = null;
         try {
             challenge = processor.authenticateOnly();
+            if (challenge == null) {
+                challenge = processor.attachSessionExecutionRequiredActions();
+            }
         } catch (Exception e) {
             return processor.handleBrowserException(e);
         }
@@ -289,6 +299,7 @@ public class AuthorizationEndpoint {
         if (challenge == null) {
             return processor.finishAuthentication();
         } else {
+            RestartLoginCookie.setRestartCookie(realm, clientConnection, uriInfo, clientSession);
             return challenge;
         }
     }

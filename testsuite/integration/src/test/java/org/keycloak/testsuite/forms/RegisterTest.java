@@ -30,11 +30,9 @@ import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.PasswordPolicy;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
-import org.keycloak.representations.IDToken;
 import org.keycloak.services.managers.RealmManager;
 import org.keycloak.testsuite.AssertEvents;
 import org.keycloak.testsuite.OAuthClient;
-import org.keycloak.testsuite.broker.util.UserSessionStatusServlet.UserSessionStatus;
 import org.keycloak.testsuite.pages.AppPage;
 import org.keycloak.testsuite.pages.AppPage.RequestType;
 import org.keycloak.testsuite.pages.LoginPage;
@@ -84,6 +82,14 @@ public class RegisterTest {
         registerPage.assertCurrent();
         Assert.assertEquals("Username already exists.", registerPage.getError());
 
+        // assert form keeps form fields on error
+        Assert.assertEquals("firstName", registerPage.getFirstName());
+        Assert.assertEquals("lastName", registerPage.getLastName());
+        Assert.assertEquals("", registerPage.getEmail());
+        Assert.assertEquals("", registerPage.getUsername());
+        Assert.assertEquals("", registerPage.getPassword());
+        Assert.assertEquals("", registerPage.getPasswordConfirm());
+
         events.expectRegister("test-user@localhost", "registerExistingUser@email")
                 .removeDetail(Details.EMAIL)
                 .user((String) null).error("username_in_use").assertEvent();
@@ -99,6 +105,14 @@ public class RegisterTest {
 
         registerPage.assertCurrent();
         Assert.assertEquals("Password confirmation doesn't match.", registerPage.getError());
+
+        // assert form keeps form fields on error
+        Assert.assertEquals("firstName", registerPage.getFirstName());
+        Assert.assertEquals("lastName", registerPage.getLastName());
+        Assert.assertEquals("registerUserInvalidPasswordConfirm@email", registerPage.getEmail());
+        Assert.assertEquals("registerUserInvalidPasswordConfirm", registerPage.getUsername());
+        Assert.assertEquals("", registerPage.getPassword());
+        Assert.assertEquals("", registerPage.getPasswordConfirm());
 
         events.expectRegister("registerUserInvalidPasswordConfirm", "registerUserInvalidPasswordConfirm@email")
                 .removeDetail(Details.USERNAME)
@@ -218,6 +232,11 @@ public class RegisterTest {
         Assert.assertNotNull(user.getCreatedTimestamp());
         // test that timestamp is current with 10s tollerance
         Assert.assertTrue((System.currentTimeMillis() - user.getCreatedTimestamp()) < 10000);
+        // test user info is set from form
+        Assert.assertEquals("registerusersuccess", user.getUsername());
+        Assert.assertEquals("registerusersuccess@email", user.getEmail());
+        Assert.assertEquals("firstName", user.getFirstName());
+        Assert.assertEquals("lastName", user.getLastName());
     }
 
     protected UserModel getUser(String userId) {

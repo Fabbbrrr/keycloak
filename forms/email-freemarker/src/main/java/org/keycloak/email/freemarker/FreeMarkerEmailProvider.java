@@ -82,6 +82,19 @@ public class FreeMarkerEmailProvider implements EmailProvider {
     }
 
     @Override
+    public void sendExecuteActions(String link, long expirationInMinutes) throws EmailException {
+        Map<String, Object> attributes = new HashMap<String, Object>();
+        attributes.put("link", link);
+        attributes.put("linkExpiration", expirationInMinutes);
+
+        String realmName = realm.getName().substring(0, 1).toUpperCase() + realm.getName().substring(1);
+        attributes.put("realmName", realmName);
+
+        send("executeActionsSubject", "executeActions.ftl", attributes);
+
+    }
+
+    @Override
     public void sendVerifyEmail(String link, long expirationInMinutes) throws EmailException {
         Map<String, Object> attributes = new HashMap<String, Object>();
         attributes.put("link", link);

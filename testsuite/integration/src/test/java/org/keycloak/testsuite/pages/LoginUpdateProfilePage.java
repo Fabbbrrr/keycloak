@@ -51,7 +51,6 @@ public class LoginUpdateProfilePage extends AbstractPage {
         lastNameInput.sendKeys(lastName);
         emailInput.clear();
         emailInput.sendKeys(email);
-
         submitButton.click();
     }
 

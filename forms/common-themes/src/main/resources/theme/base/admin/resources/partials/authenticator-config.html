@@ -7,7 +7,7 @@
     </ol>
 
     <h1 data-ng-show="create">Create Authenticator Config</h1>
-    <h1 data-ng-hide="create">{{config.alias|capitalize}}<a><i style="padding-left: 20px" class="pficon pficon-delete" data-ng-show="!create && access.manageRealm"
+    <h1 data-ng-hide="create">{{config.alias|capitalize}}<a><i class="pficon pficon-delete clickable" data-ng-show="!create && access.manageRealm"
     	data-ng-hide="changed" data-ng-click="remove()"></i></a></h1>
 
     <form class="form-horizontal" name="realmForm" novalidate kc-read-only="!access.manageRealm">
@@ -38,8 +38,8 @@
 
         <div class="form-group">
             <div class="col-md-10 col-md-offset-2" data-ng-show="!create && access.manageRealm">
-                <button kc-save  data-ng-show="changed">Save</button>
-                <button kc-reset data-ng-show="changed">Cancel</button>
+                <button kc-save  data-ng-disabled="!changed">Save</button>
+                <button kc-reset data-ng-disabled="!changed">Cancel</button>
             </div>
         </div>
     </form>

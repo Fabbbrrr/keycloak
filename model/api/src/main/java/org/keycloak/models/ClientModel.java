@@ -75,6 +75,9 @@ public interface ClientModel extends RoleContainerModel {
 
     void setNodeReRegistrationTimeout(int timeout);
 
+    String getClientAuthenticatorType();
+    void setClientAuthenticatorType(String clientAuthenticatorType);
+
     boolean validateSecret(String secret);
     String getSecret();
     public void setSecret(String secret);
@@ -103,6 +106,9 @@ public interface ClientModel extends RoleContainerModel {
     boolean isConsentRequired();
     void setConsentRequired(boolean consentRequired);
 
+    boolean isServiceAccountsEnabled();
+    void setServiceAccountsEnabled(boolean serviceAccountsEnabled);
+
     Set<RoleModel> getScopeMappings();
     void addScopeMapping(RoleModel role);
     void deleteScopeMapping(RoleModel role);
@@ -124,8 +130,8 @@ public interface ClientModel extends RoleContainerModel {
     ProtocolMapperModel addProtocolMapper(ProtocolMapperModel model);
     void removeProtocolMapper(ProtocolMapperModel mapping);
     void updateProtocolMapper(ProtocolMapperModel mapping);
-    public ProtocolMapperModel getProtocolMapperById(String id);
-    public ProtocolMapperModel getProtocolMapperByName(String protocol, String name);
+    ProtocolMapperModel getProtocolMapperById(String id);
+    ProtocolMapperModel getProtocolMapperByName(String protocol, String name);
 
     Map<String, Integer> getRegisteredNodes();
 

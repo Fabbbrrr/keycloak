@@ -5,6 +5,7 @@ import com.mongodb.MongoClient;
 import com.mongodb.MongoClientOptions;
 import com.mongodb.MongoCredential;
 import com.mongodb.ServerAddress;
+
 import org.jboss.logging.Logger;
 import org.keycloak.Config;
 import org.keycloak.connections.mongo.api.MongoStore;
@@ -18,32 +19,31 @@ import javax.net.ssl.SSLSocketFactory;
 import java.lang.reflect.Method;
 import java.net.UnknownHostException;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
  */
 public class DefaultMongoConnectionFactoryProvider implements MongoConnectionProviderFactory {
 
-    // TODO Make configurable
+    // TODO Make it dynamic
     private String[] entities = new String[]{
             "org.keycloak.models.mongo.keycloak.entities.MongoRealmEntity",
             "org.keycloak.models.mongo.keycloak.entities.MongoUserEntity",
             "org.keycloak.models.mongo.keycloak.entities.MongoRoleEntity",
+            "org.keycloak.models.mongo.keycloak.entities.MongoClientEntity",
+            "org.keycloak.models.mongo.keycloak.entities.MongoUserConsentEntity",
+            "org.keycloak.models.mongo.keycloak.entities.MongoMigrationModelEntity",
             "org.keycloak.models.entities.IdentityProviderEntity",
             "org.keycloak.models.entities.ClientIdentityProviderMappingEntity",
             "org.keycloak.models.entities.RequiredCredentialEntity",
             "org.keycloak.models.entities.CredentialEntity",
             "org.keycloak.models.entities.FederatedIdentityEntity",
-            "org.keycloak.models.mongo.keycloak.entities.MongoClientEntity",
-            "org.keycloak.models.sessions.mongo.entities.MongoUsernameLoginFailureEntity",
-            "org.keycloak.models.sessions.mongo.entities.MongoUserSessionEntity",
-            "org.keycloak.models.sessions.mongo.entities.MongoClientSessionEntity",
             "org.keycloak.models.entities.UserFederationProviderEntity",
             "org.keycloak.models.entities.UserFederationMapperEntity",
             "org.keycloak.models.entities.ProtocolMapperEntity",
             "org.keycloak.models.entities.IdentityProviderMapperEntity",
-            "org.keycloak.models.mongo.keycloak.entities.MongoUserConsentEntity",
-            "org.keycloak.models.mongo.keycloak.entities.MongoMigrationModelEntity",
             "org.keycloak.models.entities.AuthenticationExecutionEntity",
             "org.keycloak.models.entities.AuthenticationFlowEntity",
             "org.keycloak.models.entities.AuthenticatorConfigEntity",
@@ -57,6 +57,8 @@ public class DefaultMongoConnectionFactoryProvider implements MongoConnectionPro
     private MongoStore mongoStore;
     private DB db;
     protected Config.Scope config;
+    
+    private Map<String,String> operationalInfo;
 
     @Override
     public MongoConnectionProvider create(KeycloakSession session) {
@@ -159,7 +161,13 @@ public class DefaultMongoConnectionFactoryProvider implements MongoConnectionPro
         } else {
             client = new MongoClient(new ServerAddress(host, port), clientOptions);
         }
-
+        
+        operationalInfo = new LinkedHashMap<>();
+        operationalInfo.put("mongoServerAddress", client.getAddress().toString());
+        operationalInfo.put("mongoDatabaseName", dbName);
+        operationalInfo.put("mongoUser", user);
+        operationalInfo.put("mongoDriverVersion", client.getVersion());
+    		
         logger.debugv("Initialized mongo model. host: %s, port: %d, db: %s", host, port, dbName);
         return client;
     }
@@ -206,5 +214,10 @@ public class DefaultMongoConnectionFactoryProvider implements MongoConnectionPro
             }
         }
     }
+    
+    @Override
+  	public Map<String,String> getOperationalInfo() {
+  		return operationalInfo;
+  	}
 
 }
