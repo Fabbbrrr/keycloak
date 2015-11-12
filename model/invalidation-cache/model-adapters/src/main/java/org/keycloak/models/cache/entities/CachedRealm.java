@@ -1,10 +1,11 @@
 package org.keycloak.models.cache.entities;
 
-import org.keycloak.enums.SslRequired;
+import org.keycloak.common.enums.SslRequired;
 import org.keycloak.models.AuthenticationExecutionModel;
 import org.keycloak.models.AuthenticationFlowModel;
 import org.keycloak.models.AuthenticatorConfigModel;
 import org.keycloak.models.ClientModel;
+import org.keycloak.models.GroupModel;
 import org.keycloak.models.IdentityProviderMapperModel;
 import org.keycloak.models.IdentityProviderModel;
 import org.keycloak.models.OTPPolicy;
@@ -17,7 +18,7 @@ import org.keycloak.models.RoleModel;
 import org.keycloak.models.UserFederationMapperModel;
 import org.keycloak.models.UserFederationProviderModel;
 import org.keycloak.models.cache.RealmCache;
-import org.keycloak.util.MultivaluedHashMap;
+import org.keycloak.common.util.MultivaluedHashMap;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -33,7 +34,6 @@ import java.util.Set;
  * @version $Revision: 1 $
  */
 public class CachedRealm implements Serializable {
-    private static final long serialVersionUID = 1L;
 
     private String id;
     private String name;
@@ -56,8 +56,10 @@ public class CachedRealm implements Serializable {
     private int failureFactor;
     //--- end brute force settings
 
+    private boolean revokeRefreshToken;
     private int ssoSessionIdleTimeout;
     private int ssoSessionMaxLifespan;
+    private int offlineSessionIdleTimeout;
     private int accessTokenLifespan;
     private int accessCodeLifespan;
     private int accessCodeLifespanUserAction;
@@ -105,6 +107,7 @@ public class CachedRealm implements Serializable {
     protected Set<String> adminEnabledEventOperations = new HashSet<String>();
     protected boolean adminEventsDetailsEnabled;
     private List<String> defaultRoles = new LinkedList<String>();
+    private Set<String> groups = new HashSet<String>();
     private Map<String, String> realmRoles = new HashMap<String, String>();
     private Map<String, String> clients = new HashMap<String, String>();
     private boolean internationalizationEnabled;
@@ -137,8 +140,10 @@ public class CachedRealm implements Serializable {
         failureFactor = model.getFailureFactor();
         //--- end brute force settings
 
+        revokeRefreshToken = model.isRevokeRefreshToken();
         ssoSessionIdleTimeout = model.getSsoSessionIdleTimeout();
         ssoSessionMaxLifespan = model.getSsoSessionMaxLifespan();
+        offlineSessionIdleTimeout = model.getOfflineSessionIdleTimeout();
         accessTokenLifespan = model.getAccessTokenLifespan();
         accessCodeLifespan = model.getAccessCodeLifespan();
         accessCodeLifespanUserAction = model.getAccessCodeLifespanUserAction();
@@ -212,6 +217,9 @@ public class CachedRealm implements Serializable {
                 authenticationExecutions.add(flow.getId(), execution);
                 executionsById.put(execution.getId(), execution);
             }
+        }
+        for (GroupModel group : model.getGroups()) {
+            groups.add(group.getId());
         }
         for (AuthenticatorConfigModel authenticator : model.getAuthenticatorConfigs()) {
             authenticatorConfigs.put(authenticator.getId(), authenticator);
@@ -314,12 +322,20 @@ public class CachedRealm implements Serializable {
         return editUsernameAllowed;
     }
 
+    public boolean isRevokeRefreshToken() {
+        return revokeRefreshToken;
+    }
+
     public int getSsoSessionIdleTimeout() {
         return ssoSessionIdleTimeout;
     }
 
     public int getSsoSessionMaxLifespan() {
         return ssoSessionMaxLifespan;
+    }
+
+    public int getOfflineSessionIdleTimeout() {
+        return offlineSessionIdleTimeout;
     }
 
     public int getAccessTokenLifespan() {
@@ -495,5 +511,9 @@ public class CachedRealm implements Serializable {
 
     public AuthenticationFlowModel getClientAuthenticationFlow() {
         return clientAuthenticationFlow;
+    }
+
+    public Set<String> getGroups() {
+        return groups;
     }
 }

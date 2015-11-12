@@ -4,6 +4,7 @@ import org.jboss.logging.Logger;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -110,7 +111,7 @@ public class UserFederationManager implements UserProvider {
             if (realmModel == null) return;
             UserModel deletedUser = tx.userStorage().getUserById(user.getId(), realmModel);
             tx.userStorage().removeUser(realmModel, deletedUser);
-            logger.infof("Removed invalid user '%s'", user.getUsername());
+            logger.debugf("Removed invalid user '%s'", user.getUsername());
             tx.getTransaction().commit();
         } finally {
             tx.close();
@@ -162,6 +163,16 @@ public class UserFederationManager implements UserProvider {
             user = validateAndProxyUser(realm, user);
         }
         return user;
+    }
+
+    @Override
+    public List<UserModel> getGroupMembers(RealmModel realm, GroupModel group, int firstResult, int maxResults) {
+        return session.userStorage().getGroupMembers(realm, group, firstResult, maxResults);
+    }
+
+    @Override
+    public List<UserModel> getGroupMembers(RealmModel realm, GroupModel group) {
+        return getGroupMembers(realm, group, -1, -1);
     }
 
     @Override
@@ -333,6 +344,12 @@ public class UserFederationManager implements UserProvider {
     }
 
     @Override
+    public void grantToAllUsers(RealmModel realm, RoleModel role) {
+        // not federation-aware for now
+        session.userStorage().grantToAllUsers(realm, role);
+    }
+
+    @Override
     public void preRemove(RealmModel realm) {
         for (UserFederationProviderModel federation : realm.getUserFederationProviders()) {
             UserFederationProvider fed = getFederationProvider(federation);
@@ -344,6 +361,16 @@ public class UserFederationManager implements UserProvider {
     @Override
     public void preRemove(RealmModel realm, UserFederationProviderModel model) {
         session.userStorage().preRemove(realm, model);
+    }
+
+    @Override
+    public void preRemove(RealmModel realm, GroupModel group) {
+        for (UserFederationProviderModel federation : realm.getUserFederationProviders()) {
+            UserFederationProvider fed = getFederationProvider(federation);
+            fed.preRemove(realm, group);
+        }
+        session.userStorage().preRemove(realm, group);
+
     }
 
     @Override

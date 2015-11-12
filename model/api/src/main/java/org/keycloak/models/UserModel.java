@@ -8,12 +8,12 @@ import java.util.Set;
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
  * @version $Revision: 1 $
  */
-public interface UserModel {
-    public static final String USERNAME = "username";
-    public static final String LAST_NAME = "lastName";
-    public static final String FIRST_NAME = "firstName";
-    public static final String EMAIL = "email";
-    public static final String LOCALE = "locale";
+public interface UserModel extends RoleMapperModel {
+    String USERNAME = "username";
+    String LAST_NAME = "lastName";
+    String FIRST_NAME = "firstName";
+    String EMAIL = "email";
+    String LOCALE = "locale";
 
     String getId();
 
@@ -94,12 +94,10 @@ public interface UserModel {
 
     void updateCredentialDirectly(UserCredentialValueModel cred);
 
-    Set<RoleModel> getRealmRoleMappings();
-    Set<RoleModel> getClientRoleMappings(ClientModel app);
-    boolean hasRole(RoleModel role);
-    void grantRole(RoleModel role);
-    Set<RoleModel> getRoleMappings();
-    void deleteRoleMapping(RoleModel role);
+    Set<GroupModel> getGroups();
+    void joinGroup(GroupModel group);
+    void leaveGroup(GroupModel group);
+    boolean isMemberOf(GroupModel group);
 
     String getFederationLink();
     void setFederationLink(String link);

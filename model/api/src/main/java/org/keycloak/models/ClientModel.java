@@ -28,6 +28,10 @@ public interface ClientModel extends RoleContainerModel {
 
     void setName(String name);
 
+    String getDescription();
+
+    void setDescription(String description);
+
     boolean isEnabled();
 
     void setEnabled(boolean enabled);
@@ -55,6 +59,10 @@ public interface ClientModel extends RoleContainerModel {
     String getManagementUrl();
 
     void setManagementUrl(String url);
+
+    String getRootUrl();
+
+    void setRootUrl(String url);
 
     String getBaseUrl();
 

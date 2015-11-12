@@ -34,6 +34,8 @@ public class ClientEntity {
     private String id;
     @Column(name = "NAME")
     private String name;
+    @Column(name = "DESCRIPTION")
+    private String description;
     @Column(name = "CLIENT_ID")
     private String clientId;
     @Column(name="ENABLED")
@@ -81,6 +83,9 @@ public class ClientEntity {
 
     @Column(name="SURROGATE_AUTH_REQUIRED")
     private boolean surrogateAuthRequired;
+
+    @Column(name="ROOT_URL")
+    private String rootUrl;
 
     @Column(name="BASE_URL")
     private String baseUrl;
@@ -138,6 +143,14 @@ public class ClientEntity {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
     }
 
     public boolean isEnabled() {
@@ -258,6 +271,14 @@ public class ClientEntity {
 
     public void setSurrogateAuthRequired(boolean surrogateAuthRequired) {
         this.surrogateAuthRequired = surrogateAuthRequired;
+    }
+
+    public String getRootUrl() {
+        return rootUrl;
+    }
+
+    public void setRootUrl(String rootUrl) {
+        this.rootUrl = rootUrl;
     }
 
     public String getBaseUrl() {

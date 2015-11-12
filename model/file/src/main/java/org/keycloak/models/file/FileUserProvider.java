@@ -21,8 +21,12 @@ import org.keycloak.connections.file.InMemoryModel;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.CredentialValidationOutput;
 import org.keycloak.models.FederatedIdentityModel;
+import org.keycloak.models.GroupModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.ModelDuplicateException;
+import org.keycloak.models.ModelException;
+import org.keycloak.models.session.PersistentClientSessionModel;
+import org.keycloak.models.session.PersistentUserSessionModel;
 import org.keycloak.models.ProtocolMapperModel;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RequiredActionProviderModel;
@@ -32,6 +36,8 @@ import org.keycloak.models.UserFederationProviderModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.UserProvider;
 import org.keycloak.models.entities.FederatedIdentityEntity;
+import org.keycloak.models.entities.PersistentClientSessionEntity;
+import org.keycloak.models.entities.PersistentUserSessionEntity;
 import org.keycloak.models.entities.UserEntity;
 import org.keycloak.models.file.adapter.UserAdapter;
 import org.keycloak.models.utils.CredentialValidation;
@@ -41,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -72,6 +79,21 @@ public class FileUserProvider implements UserProvider {
     @Override
     public UserModel getUserById(String userId, RealmModel realm) {
         return inMemoryModel.getUser(realm.getId(), userId);
+    }
+
+    @Override
+    public List<UserModel> getGroupMembers(RealmModel realm, GroupModel group, int firstResult, int maxResults) {
+        return null;
+    }
+
+    @Override
+    public List<UserModel> getGroupMembers(RealmModel realm, GroupModel group) {
+        return null;
+    }
+
+    @Override
+    public void preRemove(RealmModel realm, GroupModel group) {
+
     }
 
     @Override
@@ -417,6 +439,13 @@ public class FileUserProvider implements UserProvider {
     }
 
     @Override
+    public void grantToAllUsers(RealmModel realm, RoleModel role) {
+        for (UserModel user : inMemoryModel.getUsers(realm.getId())) {
+            user.grantRole(role);
+        }
+    }
+
+    @Override
     public void preRemove(RealmModel realm) {
         // Nothing to do here?  Federation links are attached to users, which are removed by InMemoryModel
     }
@@ -488,5 +517,4 @@ public class FileUserProvider implements UserProvider {
         //throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
         return null; // not supported yet
     }
-
 }

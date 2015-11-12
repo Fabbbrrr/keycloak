@@ -3,7 +3,7 @@ package org.keycloak.adapters;
 import org.jboss.logging.Logger;
 import org.keycloak.KeycloakSecurityContext;
 import org.keycloak.RSATokenVerifier;
-import org.keycloak.VerificationException;
+import org.keycloak.common.VerificationException;
 import org.keycloak.representations.AccessToken;
 import org.keycloak.representations.AccessTokenResponse;
 import org.keycloak.representations.IDToken;
@@ -57,7 +57,7 @@ public class RefreshableKeycloakSecurityContext extends KeycloakSecurityContext 
     }
 
     public boolean isActive() {
-        return this.token.isActive() && this.token.getIssuedAt() > deployment.getNotBefore();
+        return token != null && this.token.isActive() && this.token.getIssuedAt() > deployment.getNotBefore();
     }
 
     public KeycloakDeployment getDeployment() {
@@ -111,13 +111,19 @@ public class RefreshableKeycloakSecurityContext extends KeycloakSecurityContext 
             log.debug("Token Verification succeeded!");
         } catch (VerificationException e) {
             log.error("failed verification of token");
+            return false;
         }
         if (response.getNotBeforePolicy() > deployment.getNotBefore()) {
             deployment.setNotBefore(response.getNotBeforePolicy());
         }
 
         this.token = token;
-        this.refreshToken = response.getRefreshToken();
+        if (response.getRefreshToken() != null) {
+            if (log.isTraceEnabled()) {
+                log.trace("Setup new refresh token to the security context");
+            }
+            this.refreshToken = response.getRefreshToken();
+        }
         this.tokenString = tokenString;
         tokenStore.refreshCallback(this);
         return true;

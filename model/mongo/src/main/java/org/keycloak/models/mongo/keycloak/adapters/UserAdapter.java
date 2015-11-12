@@ -7,6 +7,7 @@ import com.mongodb.QueryBuilder;
 
 import org.keycloak.connections.mongo.api.context.MongoStoreInvocationContext;
 import org.keycloak.models.ClientModel;
+import org.keycloak.models.GroupModel;
 import org.keycloak.models.OTPPolicy;
 import org.keycloak.models.ProtocolMapperModel;
 import org.keycloak.models.UserConsentModel;
@@ -24,10 +25,9 @@ import org.keycloak.models.entities.UserConsentEntity;
 import org.keycloak.models.mongo.keycloak.entities.MongoUserConsentEntity;
 import org.keycloak.models.mongo.keycloak.entities.MongoUserEntity;
 import org.keycloak.models.mongo.utils.MongoModelUtils;
-import org.keycloak.models.utils.HmacOTP;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.models.utils.Pbkdf2PasswordEncoder;
-import org.keycloak.util.Time;
+import org.keycloak.common.util.Time;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -449,6 +449,37 @@ public class UserAdapter extends AbstractMongoAdapter<MongoUserEntity> implement
     @Override
     public MongoUserEntity getMongoEntity() {
         return user;
+    }
+
+    @Override
+    public Set<GroupModel> getGroups() {
+        if (user.getGroupIds() == null && user.getGroupIds().size() == 0) return Collections.EMPTY_SET;
+        Set<GroupModel> groups = new HashSet<>();
+        for (String id : user.getGroupIds()) {
+            groups.add(realm.getGroupById(id));
+        }
+        return groups;
+    }
+
+    @Override
+    public void joinGroup(GroupModel group) {
+        getMongoStore().pushItemToList(getUser(), "groupIds", group.getId(), true, invocationContext);
+
+    }
+
+    @Override
+    public void leaveGroup(GroupModel group) {
+        if (user == null || group == null) return;
+
+        getMongoStore().pullItemFromList(getUser(), "groupIds", group.getId(), invocationContext);
+
+    }
+
+    @Override
+    public boolean isMemberOf(GroupModel group) {
+        if (user.getGroupIds().contains(group.getId())) return true;
+        Set<GroupModel> groups = getGroups();
+        return KeycloakModelUtils.isMember(groups, group);
     }
 
     @Override

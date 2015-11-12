@@ -4,7 +4,6 @@ import org.jboss.resteasy.annotations.cache.NoCache;
 import org.jboss.resteasy.spi.NotFoundException;
 import org.keycloak.events.admin.OperationType;
 import org.keycloak.models.ClientModel;
-import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.ModelDuplicateException;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RoleContainerModel;
@@ -51,7 +50,7 @@ public class RoleContainerResource extends RoleResource {
     }
 
     /**
-     * List all roles for this realm or client
+     * Get all roles for the realm or client
      *
      * @return
      */
@@ -70,7 +69,7 @@ public class RoleContainerResource extends RoleResource {
     }
 
     /**
-     * Create a new role for this realm or client
+     * Create a new role for the realm or client
      *
      * @param rep
      * @return
@@ -83,6 +82,8 @@ public class RoleContainerResource extends RoleResource {
         try {
             RoleModel role = roleContainer.addRole(rep.getName());
             role.setDescription(rep.getDescription());
+            boolean scopeParamRequired = rep.isScopeParamRequired()==null ? false : rep.isScopeParamRequired();
+            role.setScopeParamRequired(scopeParamRequired);
 
             adminEvent.operation(OperationType.CREATE).resourcePath(uriInfo, role.getId()).representation(rep).success();
 
@@ -164,7 +165,7 @@ public class RoleContainerResource extends RoleResource {
     }
 
     /**
-     * Add a composite to this role
+     * Add a composite to the role
      *
      * @param roleName role's name (not id!)
      * @param roles
@@ -183,7 +184,7 @@ public class RoleContainerResource extends RoleResource {
     }
 
     /**
-     * List composites of this role
+     * Get composites of the role
      *
      * @param roleName role's name (not id!)
      * @return
@@ -203,7 +204,7 @@ public class RoleContainerResource extends RoleResource {
     }
 
     /**
-     * Get realm-level roles of this role's composite
+     * Get realm-level roles of the role's composite
      *
      * @param roleName role's name (not id!)
      * @return
@@ -223,7 +224,7 @@ public class RoleContainerResource extends RoleResource {
     }
 
     /**
-     * An app-level roles for a specific app for this role's composite
+     * An app-level roles for the specified app for the role's composite
      *
      * @param roleName role's name (not id!)
      * @param client
@@ -252,7 +253,7 @@ public class RoleContainerResource extends RoleResource {
 
 
     /**
-     * Remove roles from this role's composite
+     * Remove roles from the role's composite
      *
      * @param roleName role's name (not id!)
      * @param roles roles to remove

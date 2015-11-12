@@ -181,6 +181,16 @@ module.factory('UserSessionsLoader', function(Loader, UserSessions, $route, $q) 
     });
 });
 
+module.factory('UserOfflineSessionsLoader', function(Loader, UserOfflineSessions, $route, $q) {
+    return Loader.query(UserOfflineSessions, function() {
+        return {
+            realm : $route.current.params.realm,
+            user : $route.current.params.user,
+            client : $route.current.params.client
+        }
+    });
+});
+
 module.factory('UserFederatedIdentityLoader', function(Loader, UserFederatedIdentities, $route, $q) {
     return Loader.query(UserFederatedIdentities, function() {
         return {
@@ -239,6 +249,15 @@ module.factory('ClientSessionStatsLoader', function(Loader, ClientSessionStats, 
 
 module.factory('ClientSessionCountLoader', function(Loader, ClientSessionCount, $route, $q) {
     return Loader.get(ClientSessionCount, function() {
+        return {
+            realm : $route.current.params.realm,
+            client : $route.current.params.client
+        }
+    });
+});
+
+module.factory('ClientOfflineSessionCountLoader', function(Loader, ClientOfflineSessionCount, $route, $q) {
+    return Loader.get(ClientOfflineSessionCount, function() {
         return {
             realm : $route.current.params.realm,
             client : $route.current.params.client
@@ -438,6 +457,24 @@ module.factory('AuthenticationConfigLoader', function(Loader, AuthenticationConf
         }
     });
 });
+
+module.factory('GroupListLoader', function(Loader, Groups, $route, $q) {
+    return Loader.query(Groups, function() {
+        return {
+            realm : $route.current.params.realm
+        }
+    });
+});
+
+module.factory('GroupLoader', function(Loader, Group, $route, $q) {
+    return Loader.get(Group, function() {
+        return {
+            realm : $route.current.params.realm,
+            groupId : $route.current.params.group
+        }
+    });
+});
+
 
 
 

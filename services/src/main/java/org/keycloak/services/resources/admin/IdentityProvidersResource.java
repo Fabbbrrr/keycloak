@@ -57,6 +57,12 @@ public class IdentityProvidersResource {
         this.adminEvent = adminEvent;
     }
 
+    /**
+     * Get identity providers
+     *
+     * @param providerId Provider id
+     * @return
+     */
     @Path("/providers/{provider_id}")
     @GET
     @NoCache
@@ -70,6 +76,14 @@ public class IdentityProvidersResource {
         return Response.status(BAD_REQUEST).build();
     }
 
+    /**
+     * Import identity provider from uploaded JSON file
+     *
+     * @param uriInfo
+     * @param input
+     * @return
+     * @throws IOException
+     */
     @POST
     @Path("import-config")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
@@ -85,6 +99,14 @@ public class IdentityProvidersResource {
         return config;
     }
 
+    /**
+     * Import identity provider from JSON body
+     *
+     * @param uriInfo
+     * @param data JSON body
+     * @return
+     * @throws IOException
+     */
     @POST
     @Path("import-config")
     @Consumes(MediaType.APPLICATION_JSON)
@@ -108,6 +130,11 @@ public class IdentityProvidersResource {
         }
     }
 
+    /**
+     * Get identity providers
+     *
+     * @return
+     */
     @GET
     @Path("instances")
     @NoCache
@@ -118,11 +145,18 @@ public class IdentityProvidersResource {
         List<IdentityProviderRepresentation> representations = new ArrayList<IdentityProviderRepresentation>();
 
         for (IdentityProviderModel identityProviderModel : realm.getIdentityProviders()) {
-            representations.add(ModelToRepresentation.toRepresentation(identityProviderModel));
+            representations.add(ModelToRepresentation.toRepresentation(realm, identityProviderModel));
         }
         return representations;
     }
 
+    /**
+     * Create a new identity provider
+     *
+     * @param uriInfo
+     * @param representation JSON body
+     * @return
+     */
     @POST
     @Path("instances")
     @Consumes(MediaType.APPLICATION_JSON)
@@ -130,7 +164,7 @@ public class IdentityProvidersResource {
         this.auth.requireManage();
 
         try {
-            IdentityProviderModel identityProvider = RepresentationToModel.toModel(representation);
+            IdentityProviderModel identityProvider = RepresentationToModel.toModel(realm, representation);
             this.realm.addIdentityProvider(identityProvider);
 
             adminEvent.operation(OperationType.CREATE).resourcePath(uriInfo, identityProvider.getInternalId())

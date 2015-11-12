@@ -76,10 +76,14 @@ public class RealmEntity {
     @Column(name="EDIT_USERNAME_ALLOWED")
     protected boolean editUsernameAllowed;
 
+    @Column(name="REVOKE_REFRESH_TOKEN")
+    private boolean revokeRefreshToken;
     @Column(name="SSO_IDLE_TIMEOUT")
     private int ssoSessionIdleTimeout;
     @Column(name="SSO_MAX_LIFESPAN")
     private int ssoSessionMaxLifespan;
+    @Column(name="OFFLINE_SESSION_IDLE_TIMEOUT")
+    private int offlineSessionIdleTimeout;
     @Column(name="ACCESS_TOKEN_LIFESPAN")
     protected int accessTokenLifespan;
     @Column(name="ACCESS_CODE_LIFESPAN")
@@ -116,7 +120,7 @@ public class RealmEntity {
     Collection<RequiredCredentialEntity> requiredCredentials = new ArrayList<RequiredCredentialEntity>();
 
     @OneToMany(cascade ={CascadeType.REMOVE}, orphanRemoval = true)
-    @JoinTable(name="FED_PROVIDERS", joinColumns={ @JoinColumn(name="REALM_ID") })
+    @JoinTable(name="FED_PROVIDERS", joinColumns={ @JoinColumn(name="REALM_ID") }, inverseJoinColumns={ @JoinColumn(name = "USERFEDERATIONPROVIDERS_ID") })
     List<UserFederationProviderEntity> userFederationProviders = new ArrayList<UserFederationProviderEntity>();
 
     @OneToMany(cascade ={CascadeType.REMOVE}, orphanRemoval = true, mappedBy = "realm")
@@ -128,6 +132,9 @@ public class RealmEntity {
 
     @OneToMany(fetch = FetchType.LAZY, cascade ={CascadeType.REMOVE}, orphanRemoval = true, mappedBy = "realm")
     Collection<RoleEntity> roles = new ArrayList<RoleEntity>();
+
+    @OneToMany(fetch = FetchType.LAZY, cascade ={CascadeType.REMOVE}, orphanRemoval = true, mappedBy = "realm")
+    Collection<GroupEntity> groups = new ArrayList<GroupEntity>();
 
     @ElementCollection
     @MapKeyColumn(name="NAME")
@@ -288,6 +295,14 @@ public class RealmEntity {
         this.editUsernameAllowed = editUsernameAllowed;
     }
 
+    public boolean isRevokeRefreshToken() {
+        return revokeRefreshToken;
+    }
+
+    public void setRevokeRefreshToken(boolean revokeRefreshToken) {
+        this.revokeRefreshToken = revokeRefreshToken;
+    }
+
     public int getSsoSessionIdleTimeout() {
         return ssoSessionIdleTimeout;
     }
@@ -302,6 +317,14 @@ public class RealmEntity {
 
     public void setSsoSessionMaxLifespan(int ssoSessionMaxLifespan) {
         this.ssoSessionMaxLifespan = ssoSessionMaxLifespan;
+    }
+
+    public int getOfflineSessionIdleTimeout() {
+        return offlineSessionIdleTimeout;
+    }
+
+    public void setOfflineSessionIdleTimeout(int offlineSessionIdleTimeout) {
+        this.offlineSessionIdleTimeout = offlineSessionIdleTimeout;
     }
 
     public int getAccessTokenLifespan() {
@@ -698,5 +721,21 @@ public class RealmEntity {
     public void setClientAuthenticationFlow(String clientAuthenticationFlow) {
         this.clientAuthenticationFlow = clientAuthenticationFlow;
     }
+
+    public Collection<GroupEntity> getGroups() {
+        return groups;
+    }
+
+    public void setGroups(Collection<GroupEntity> groups) {
+        this.groups = groups;
+    }
+
+    public void addGroup(GroupEntity group) {
+        if (groups == null) {
+            groups = new ArrayList<GroupEntity>();
+        }
+        groups.add(group);
+    }
+
 }
 

@@ -66,6 +66,12 @@ public class ClientAdapter implements ClientModel {
     }
 
     @Override
+    public String getDescription() { return entity.getDescription(); }
+
+    @Override
+    public void setDescription(String description) { entity.setDescription(description); }
+
+    @Override
     public boolean isEnabled() {
         return entity.isEnabled();
     }
@@ -439,6 +445,16 @@ public class ClientAdapter implements ClientModel {
     @Override
     public void setManagementUrl(String url) {
         entity.setManagementUrl(url);
+    }
+
+    @Override
+    public String getRootUrl() {
+        return entity.getRootUrl();
+    }
+
+    @Override
+    public void setRootUrl(String url) {
+        entity.setRootUrl(url);
     }
 
     @Override

@@ -4,6 +4,8 @@ import org.keycloak.models.*;
 import org.keycloak.models.cache.CacheUserProvider;
 import org.keycloak.models.cache.UserCache;
 import org.keycloak.models.cache.entities.CachedUser;
+import org.keycloak.models.session.PersistentClientSessionModel;
+import org.keycloak.models.session.PersistentUserSessionModel;
 
 import java.util.*;
 
@@ -104,13 +106,14 @@ public class DefaultCacheUserProvider implements CacheUserProvider {
         };
     }
 
+    private boolean isRegisteredForInvalidation(RealmModel realm, String userId) {
+        return realmInvalidations.contains(realm.getId()) || userInvalidations.containsKey(userId);
+    }
+
     @Override
     public UserModel getUserById(String id, RealmModel realm) {
         if (!cache.isEnabled()) return getDelegate().getUserById(id, realm);
-        if (realmInvalidations.contains(realm.getId())) {
-            return getDelegate().getUserById(id, realm);
-        }
-        if (userInvalidations.containsKey(id)) {
+        if (isRegisteredForInvalidation(realm, id)) {
             return getDelegate().getUserById(id, realm);
         }
 
@@ -192,6 +195,16 @@ public class DefaultCacheUserProvider implements CacheUserProvider {
     @Override
     public UserModel getUserByFederatedIdentity(FederatedIdentityModel socialLink, RealmModel realm) {
         return getDelegate().getUserByFederatedIdentity(socialLink, realm);
+    }
+
+    @Override
+    public List<UserModel> getGroupMembers(RealmModel realm, GroupModel group, int firstResult, int maxResults) {
+        return getDelegate().getGroupMembers(realm, group, firstResult, maxResults);
+    }
+
+    @Override
+    public List<UserModel> getGroupMembers(RealmModel realm, GroupModel group) {
+        return getDelegate().getGroupMembers(realm, group);
     }
 
     @Override
@@ -301,6 +314,12 @@ public class DefaultCacheUserProvider implements CacheUserProvider {
     }
 
     @Override
+    public void grantToAllUsers(RealmModel realm, RoleModel role) {
+        realmInvalidations.add(realm.getId()); // easier to just invalidate whole realm
+        getDelegate().grantToAllUsers(realm, role);
+    }
+
+    @Override
     public void preRemove(RealmModel realm) {
         realmInvalidations.add(realm.getId());
         getDelegate().preRemove(realm);
@@ -310,6 +329,11 @@ public class DefaultCacheUserProvider implements CacheUserProvider {
     public void preRemove(RealmModel realm, RoleModel role) {
         getDelegate().preRemove(realm, role);
     }
+    @Override
+    public void preRemove(RealmModel realm, GroupModel group) {
+        getDelegate().preRemove(realm, group);
+    }
+
 
     @Override
     public void preRemove(RealmModel realm, UserFederationProviderModel link) {
@@ -319,6 +343,7 @@ public class DefaultCacheUserProvider implements CacheUserProvider {
 
     @Override
     public void preRemove(RealmModel realm, ClientModel client) {
+        realmInvalidations.add(realm.getId()); // easier to just invalidate whole realm
         getDelegate().preRemove(realm, client);
     }
 

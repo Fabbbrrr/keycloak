@@ -1,6 +1,7 @@
 package org.keycloak.models.jpa;
 
 import org.keycloak.models.ClientModel;
+import org.keycloak.models.GroupModel;
 import org.keycloak.models.OTPPolicy;
 import org.keycloak.models.ProtocolMapperModel;
 import org.keycloak.models.UserConsentModel;
@@ -19,12 +20,13 @@ import org.keycloak.models.jpa.entities.UserConsentProtocolMapperEntity;
 import org.keycloak.models.jpa.entities.UserConsentRoleEntity;
 import org.keycloak.models.jpa.entities.UserAttributeEntity;
 import org.keycloak.models.jpa.entities.UserEntity;
+import org.keycloak.models.jpa.entities.UserGroupMembershipEntity;
 import org.keycloak.models.jpa.entities.UserRequiredActionEntity;
 import org.keycloak.models.jpa.entities.UserRoleMappingEntity;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.models.utils.Pbkdf2PasswordEncoder;
-import org.keycloak.util.MultivaluedHashMap;
-import org.keycloak.util.Time;
+import org.keycloak.common.util.MultivaluedHashMap;
+import org.keycloak.common.util.Time;
 
 import javax.persistence.EntityManager;
 import javax.persistence.TypedQuery;
@@ -33,8 +35,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -486,6 +486,63 @@ public class UserAdapter implements UserModel {
 
         em.flush();
     }
+
+
+    @Override
+    public Set<GroupModel> getGroups() {
+        // we query ids only as the group  might be cached and following the @ManyToOne will result in a load
+        // even if we're getting just the id.
+        TypedQuery<String> query = em.createNamedQuery("userGroupIds", String.class);
+        query.setParameter("user", getUser());
+        List<String> ids = query.getResultList();
+        Set<GroupModel> groups = new HashSet<>();
+        for (String groupId : ids) {
+            GroupModel group = realm.getGroupById(groupId);
+            if (group == null) continue;
+            groups.add(group);
+        }
+        return groups;
+    }
+
+    @Override
+    public void joinGroup(GroupModel group) {
+        if (isMemberOf(group)) return;
+        UserGroupMembershipEntity entity = new UserGroupMembershipEntity();
+        entity.setUser(getUser());
+        entity.setGroupId(group.getId());
+        em.persist(entity);
+        em.flush();
+        em.detach(entity);
+
+    }
+
+    @Override
+    public void leaveGroup(GroupModel group) {
+        if (user == null || group == null) return;
+
+        TypedQuery<UserGroupMembershipEntity> query = getUserGroupMappingQuery(group);
+        List<UserGroupMembershipEntity> results = query.getResultList();
+        if (results.size() == 0) return;
+        for (UserGroupMembershipEntity entity : results) {
+            em.remove(entity);
+        }
+        em.flush();
+
+    }
+
+    @Override
+    public boolean isMemberOf(GroupModel group) {
+        Set<GroupModel> roles = getGroups();
+        return KeycloakModelUtils.isMember(roles, group);
+    }
+
+    protected TypedQuery<UserGroupMembershipEntity> getUserGroupMappingQuery(GroupModel group) {
+        TypedQuery<UserGroupMembershipEntity> query = em.createNamedQuery("userMemberOf", UserGroupMembershipEntity.class);
+        query.setParameter("user", getUser());
+        query.setParameter("groupId", group.getId());
+        return query;
+    }
+
 
     @Override
     public boolean hasRole(RoleModel role) {

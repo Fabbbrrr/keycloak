@@ -322,6 +322,18 @@ public class ClientAdapter implements ClientModel {
     }
 
     @Override
+    public String getDescription() {
+        if (updated != null) return updated.getDescription();
+        return cached.getDescription();
+    }
+
+    @Override
+    public void setDescription(String description) {
+        getDelegateForUpdate();
+        updated.setDescription(description);
+    }
+
+    @Override
     public boolean isSurrogateAuthRequired() {
         if (updated != null) return updated.isSurrogateAuthRequired();
         return cached.isSurrogateAuthRequired();
@@ -343,6 +355,18 @@ public class ClientAdapter implements ClientModel {
     public void setManagementUrl(String url) {
         getDelegateForUpdate();
         updated.setManagementUrl(url);
+    }
+
+    @Override
+    public String getRootUrl() {
+        if (updated != null) return updated.getRootUrl();
+        return cached.getRootUrl();
+    }
+
+    @Override
+    public void setRootUrl(String url) {
+        getDelegateForUpdate();
+        updated.setRootUrl(url);
     }
 
     @Override

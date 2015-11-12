@@ -7,7 +7,6 @@ import org.keycloak.broker.provider.IdentityProvider;
 import org.keycloak.broker.provider.IdentityProviderFactory;
 import org.keycloak.broker.provider.IdentityProviderMapper;
 import org.keycloak.events.admin.OperationType;
-import org.keycloak.models.ClientModel;
 import org.keycloak.models.FederatedIdentityModel;
 import org.keycloak.models.IdentityProviderMapperModel;
 import org.keycloak.models.IdentityProviderModel;
@@ -70,15 +69,25 @@ public class IdentityProviderResource {
         this.adminEvent = adminEvent;
     }
 
+    /**
+     * Get the identity provider
+     *
+     * @return
+     */
     @GET
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
     public IdentityProviderRepresentation getIdentityProvider() {
         this.auth.requireView();
-        IdentityProviderRepresentation rep = ModelToRepresentation.toRepresentation(this.identityProviderModel);
+        IdentityProviderRepresentation rep = ModelToRepresentation.toRepresentation(realm, this.identityProviderModel);
         return rep;
     }
 
+    /**
+     * Delete the identity provider
+     *
+     * @return
+     */
     @DELETE
     @NoCache
     public Response delete() {
@@ -91,6 +100,12 @@ public class IdentityProviderResource {
         return Response.noContent().build();
     }
 
+    /**
+     * Update the identity provider
+     *
+     * @param providerRep
+     * @return
+     */
     @PUT
     @Consumes(MediaType.APPLICATION_JSON)
     @NoCache
@@ -102,7 +117,7 @@ public class IdentityProviderResource {
             String newProviderId = providerRep.getAlias();
             String oldProviderId = getProviderIdByInternalId(this.realm, internalId);
 
-            this.realm.updateIdentityProvider(RepresentationToModel.toModel(providerRep));
+            this.realm.updateIdentityProvider(RepresentationToModel.toModel(realm, providerRep));
 
             if (oldProviderId != null && !oldProviderId.equals(newProviderId)) {
 
@@ -161,7 +176,13 @@ public class IdentityProviderResource {
         return null;
     }
 
-
+    /**
+     * Export public broker configuration for identity provider
+     *
+     * @param uriInfo
+     * @param format Format to use
+     * @return
+     */
     @GET
     @Path("export")
     @NoCache
@@ -175,6 +196,9 @@ public class IdentityProviderResource {
         }
     }
 
+    /**
+     * Get mapper types for identity provider
+     */
     @GET
     @Path("mapper-types")
     @NoCache
@@ -210,6 +234,9 @@ public class IdentityProviderResource {
         return types;
     }
 
+    /**
+     * Get mappers for identity provider
+     */
     @GET
     @Path("mappers")
     @Produces(MediaType.APPLICATION_JSON)
@@ -223,6 +250,12 @@ public class IdentityProviderResource {
         return mappers;
     }
 
+    /**
+     * Add a mapper to identity provider
+     *
+     * @param mapper
+     * @return
+     */
     @POST
     @Path("mappers")
     @Consumes(MediaType.APPLICATION_JSON)
@@ -238,6 +271,12 @@ public class IdentityProviderResource {
 
     }
 
+    /**
+     * Get mapper by id for the identity provider
+     *
+     * @param id
+     * @return
+     */
     @GET
     @NoCache
     @Path("mappers/{id}")
@@ -249,6 +288,12 @@ public class IdentityProviderResource {
         return ModelToRepresentation.toRepresentation(model);
     }
 
+    /**
+     * Update a mapper for the identity provider
+     *
+     * @param id Mapper id
+     * @param rep
+     */
     @PUT
     @NoCache
     @Path("mappers/{id}")
@@ -263,6 +308,11 @@ public class IdentityProviderResource {
 
     }
 
+    /**
+     * Delete a mapper for the identity provider
+     *
+     * @param id Mapper id
+     */
     @DELETE
     @NoCache
     @Path("mappers/{id}")

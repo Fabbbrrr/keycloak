@@ -1,7 +1,7 @@
 package org.keycloak.models.cache.infinispan;
 
 import org.keycloak.Config;
-import org.keycloak.enums.SslRequired;
+import org.keycloak.common.enums.SslRequired;
 import org.keycloak.models.*;
 import org.keycloak.models.cache.CacheRealmProvider;
 import org.keycloak.models.cache.RealmCache;
@@ -240,6 +240,18 @@ public class RealmAdapter implements RealmModel {
     }
 
     @Override
+    public boolean isRevokeRefreshToken() {
+        if (updated != null) return updated.isRevokeRefreshToken();
+        return cached.isRevokeRefreshToken();
+    }
+
+    @Override
+    public void setRevokeRefreshToken(boolean revokeRefreshToken) {
+        getDelegateForUpdate();
+        updated.setRevokeRefreshToken(revokeRefreshToken);
+    }
+
+    @Override
     public int getSsoSessionIdleTimeout() {
         if (updated != null) return updated.getSsoSessionIdleTimeout();
         return cached.getSsoSessionIdleTimeout();
@@ -261,6 +273,19 @@ public class RealmAdapter implements RealmModel {
     public void setSsoSessionMaxLifespan(int seconds) {
         getDelegateForUpdate();
         updated.setSsoSessionMaxLifespan(seconds);
+    }
+
+    @Override
+    public int getOfflineSessionIdleTimeout() {
+        if (updated != null) return updated.getOfflineSessionIdleTimeout();
+        return cached.getOfflineSessionIdleTimeout();
+    }
+
+
+    @Override
+    public void setOfflineSessionIdleTimeout(int seconds) {
+        getDelegateForUpdate();
+        updated.setOfflineSessionIdleTimeout(seconds);
     }
 
     @Override
@@ -1236,5 +1261,62 @@ public class RealmAdapter implements RealmModel {
     public RequiredActionProviderModel getRequiredActionProviderByAlias(String alias) {
         if (updated != null) return updated.getRequiredActionProviderByAlias(alias);
         return cached.getRequiredActionProvidersByAlias().get(alias);
+    }
+
+    @Override
+    public GroupModel getGroupById(String id) {
+        if (updated != null) return updated.getGroupById(id);
+        return cacheSession.getGroupById(id, this);
+    }
+
+    @Override
+    public List<GroupModel> getGroups() {
+        if (updated != null) return updated.getGroups();
+        if (cached.getGroups().isEmpty()) return Collections.EMPTY_LIST;
+        List<GroupModel> list = new LinkedList<>();
+        for (String id : cached.getGroups()) {
+            GroupModel group = cacheSession.getGroupById(id, this);
+            if (group == null) continue;
+            list.add(group);
+        }
+        return list;
+    }
+
+    @Override
+    public List<GroupModel> getTopLevelGroups() {
+        List<GroupModel> all = getGroups();
+        Iterator<GroupModel> it = all.iterator();
+        while (it.hasNext()) {
+            GroupModel group = it.next();
+            if (group.getParent() != null) {
+                it.remove();
+            }
+        }
+        return all;
+    }
+
+    @Override
+    public boolean removeGroup(GroupModel group) {
+        getDelegateForUpdate();
+        return updated.removeGroup(group);
+    }
+
+    @Override
+    public GroupModel createGroup(String name) {
+        getDelegateForUpdate();
+        return updated.createGroup(name);
+    }
+
+    @Override
+    public void addTopLevelGroup(GroupModel subGroup) {
+        getDelegateForUpdate();
+        updated.addTopLevelGroup(subGroup);
+
+    }
+
+    @Override
+    public void moveGroup(GroupModel group, GroupModel toParent) {
+        getDelegateForUpdate();
+        updated.moveGroup(group, toParent);
     }
 }

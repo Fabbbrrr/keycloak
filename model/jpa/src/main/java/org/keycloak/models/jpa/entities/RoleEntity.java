@@ -30,13 +30,15 @@ import java.util.Collection;
 
 public class RoleEntity {
     @Id
-    @Column(name="id", length = 36)
+    @Column(name="ID", length = 36)
     private String id;
 
     @Column(name = "NAME")
     private String name;
     @Column(name = "DESCRIPTION")
     private String description;
+    @Column(name = "SCOPE_PARAM_REQUIRED")
+    private boolean scopeParamRequired;
 
     // hax! couldn't get constraint to work properly
     @Column(name = "REALM_ID")
@@ -91,6 +93,14 @@ public class RoleEntity {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public boolean isScopeParamRequired() {
+        return scopeParamRequired;
+    }
+
+    public void setScopeParamRequired(boolean scopeParamRequired) {
+        this.scopeParamRequired = scopeParamRequired;
     }
 
     public Collection<RoleEntity> getCompositeRoles() {

@@ -184,10 +184,6 @@ module.factory('Notifications', function($rootScope, $timeout) {
 	return notifications;
 });
 
-module.factory('WhoAmI', function($resource) {
-    return $resource(consoleBaseUrl + '/whoami');
-});
-
 module.factory('Realm', function($resource) {
 	return $resource(authUrl + '/admin/realms/:id', {
 		id : '@realm'
@@ -371,6 +367,13 @@ module.factory('UserSessions', function($resource) {
     return $resource(authUrl + '/admin/realms/:realm/users/:user/sessions', {
         realm : '@realm',
         user : '@user'
+    });
+});
+module.factory('UserOfflineSessions', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/users/:user/offline-sessions/:client', {
+        realm : '@realm',
+        user : '@user',
+        client : '@client'
     });
 });
 
@@ -841,6 +844,20 @@ module.factory('ClientUserSessions', function($resource) {
     });
 });
 
+module.factory('ClientOfflineSessionCount', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/clients/:client/offline-session-count', {
+        realm : '@realm',
+        client : "@client"
+    });
+});
+
+module.factory('ClientOfflineSessions', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/clients/:client/offline-sessions', {
+        realm : '@realm',
+        client : "@client"
+    });
+});
+
 module.factory('ClientLogoutAll', function($resource) {
     return $resource(authUrl + '/admin/realms/:realm/clients/:client/logout-all', {
         realm : '@realm',
@@ -926,6 +943,13 @@ module.factory('Client', function($resource) {
         }
     });
 });
+
+module.factory('ClientDescriptionConverter', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/client-description-converter', {
+        realm : '@realm'
+    });
+});
+
 
 module.factory('ClientInstallation', function($resource) {
     var url = authUrl + '/admin/realms/:realm/clients/:client/installation/json';
@@ -1063,7 +1087,7 @@ module.factory('PasswordPolicy', function() {
         upperCase:      	"Minimal number (integer type) of uppercase characters in password. Default value is 1.",
         specialChars:   	"Minimal number (integer type) of special characters in password. Default value is 1.",
         notUsername:    	"Block passwords that are equal to the username",
-        regexPatterns:  	"Block passwords that do not match all of the regex patterns (string type).",
+        regexPattern:  	    "Block passwords that do not match the regex pattern (string type).",
         passwordHistory:  	"Block passwords that are equal to previous passwords. Default value is 3.",
         forceExpiredPasswordChange:  	"Force password change when password credential is expired. Default value is 365 days."
     }
@@ -1076,7 +1100,7 @@ module.factory('PasswordPolicy', function() {
         { name: 'upperCase', value: 1 },
         { name: 'specialChars', value: 1 },
         { name: 'notUsername', value: 1 },
-        { name: 'regexPatterns', value: ''},
+        { name: 'regexPattern', value: ''},
         { name: 'passwordHistory', value: 3 },
         { name: 'forceExpiredPasswordChange', value: 365 }
     ];
@@ -1094,7 +1118,7 @@ module.factory('PasswordPolicy', function() {
         for (var i = 0; i < policyArray.length; i ++){
             var policyToken = policyArray[i];
             
-            if(policyToken.indexOf('regexPatterns') === 0) {
+            if(policyToken.indexOf('regexPattern') === 0) {
             	re = /(\w+)\((.*)\)/;
             	policyEntry = re.exec(policyToken);
                 if (null !== policyEntry) {
@@ -1132,6 +1156,25 @@ module.factory('PasswordPolicy', function() {
     };
 
     return p;
+});
+
+module.filter('removeSelectedPolicies', function() {
+    return function(policies, selectedPolicies) {
+        var result = [];
+        for(var i in policies) {
+            var policy = policies[i];
+            var policyAvailable = true;
+            for(var j in selectedPolicies) {
+                if(policy.name === selectedPolicies[j].name && policy.name !== 'regexPattern') {
+                    policyAvailable = false;
+                }
+            }
+            if(policyAvailable) {
+                result.push(policy);
+            }
+        }
+        return result;
+    }
 });
 
 module.factory('IdentityProvider', function($resource) {
@@ -1398,6 +1441,78 @@ module.service('SelectRoleDialog', function($modal) {
 
     return dialog
 });
+
+module.factory('Group', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/groups/:groupId', {
+        realm : '@realm',
+        userId : '@groupId'
+    }, {
+        update : {
+            method : 'PUT'
+        }
+    });
+});
+
+module.factory('GroupChildren', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/groups/:groupId/children', {
+        realm : '@realm',
+        groupId : '@groupId'
+    });
+});
+
+module.factory('Groups', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/groups', {
+        realm : '@realm'
+    });
+});
+
+module.factory('GroupRealmRoleMapping', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/groups/:groupId/role-mappings/realm', {
+        realm : '@realm',
+        groupId : '@groupId'
+    });
+});
+
+module.factory('GroupCompositeRealmRoleMapping', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/groups/:groupId/role-mappings/realm/composite', {
+        realm : '@realm',
+        groupId : '@groupId'
+    });
+});
+
+module.factory('GroupAvailableRealmRoleMapping', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/groups/:groupId/role-mappings/realm/available', {
+        realm : '@realm',
+        groupId : '@groupId'
+    });
+});
+
+
+module.factory('GroupClientRoleMapping', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/groups/:groupId/role-mappings/clients/:client', {
+        realm : '@realm',
+        groupId : '@groupId',
+        client : "@client"
+    });
+});
+
+module.factory('GroupAvailableClientRoleMapping', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/groups/:groupId/role-mappings/clients/:client/available', {
+        realm : '@realm',
+        groupId : '@groupId',
+        client : "@client"
+    });
+});
+
+module.factory('GroupCompositeClientRoleMapping', function($resource) {
+    return $resource(authUrl + '/admin/realms/:realm/groups/:groupId/role-mappings/clients/:client/composite', {
+        realm : '@realm',
+        groupId : '@groupId',
+        client : "@client"
+    });
+});
+
+
 
 
 

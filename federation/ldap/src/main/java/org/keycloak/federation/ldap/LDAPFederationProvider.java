@@ -12,8 +12,8 @@ import org.keycloak.federation.ldap.idm.store.ldap.LDAPIdentityStore;
 import org.keycloak.federation.ldap.kerberos.LDAPProviderKerberosConfig;
 import org.keycloak.federation.ldap.mappers.LDAPFederationMapper;
 import org.keycloak.models.CredentialValidationOutput;
+import org.keycloak.models.GroupModel;
 import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.KeycloakSessionTask;
 import org.keycloak.models.LDAPConstants;
 import org.keycloak.models.ModelDuplicateException;
 import org.keycloak.models.ModelException;
@@ -25,10 +25,8 @@ import org.keycloak.mappers.UserFederationMapper;
 import org.keycloak.models.UserFederationMapperModel;
 import org.keycloak.models.UserFederationProvider;
 import org.keycloak.models.UserFederationProviderModel;
-import org.keycloak.models.UserFederationSyncResult;
 import org.keycloak.models.UserModel;
-import org.keycloak.constants.KerberosConstants;
-import org.keycloak.models.utils.KeycloakModelUtils;
+import org.keycloak.common.constants.KerberosConstants;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -320,6 +318,11 @@ public class LDAPFederationProvider implements UserFederationProvider {
     @Override
     public void preRemove(RealmModel realm, RoleModel role) {
         // TODO: Maybe mappers callback to ensure role deletion propagated to LDAP by RoleLDAPFederationMapper?
+    }
+
+    @Override
+    public void preRemove(RealmModel realm, GroupModel group) {
+
     }
 
     public boolean validPassword(RealmModel realm, UserModel user, String password) {

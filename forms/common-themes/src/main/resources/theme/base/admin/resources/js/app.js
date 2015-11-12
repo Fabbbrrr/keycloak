@@ -7,12 +7,36 @@ var configUrl = consoleBaseUrl + "/config";
 
 var auth = {};
 
-var module = angular.module('keycloak', [ 'keycloak.services', 'keycloak.loaders', 'ui.bootstrap', 'ui.select2', 'angularFileUpload' ]);
+var module = angular.module('keycloak', [ 'keycloak.services', 'keycloak.loaders', 'ui.bootstrap', 'ui.select2', 'angularFileUpload', 'angularTreeview', 'pascalprecht.translate', 'ngCookies', 'ngSanitize']);
 var resourceRequests = 0;
 var loadingTimer = -1;
 
 angular.element(document).ready(function () {
     var keycloakAuth = new Keycloak(configUrl);
+
+    function whoAmI(success, error) {
+        var req = new XMLHttpRequest();
+        req.open('GET', consoleBaseUrl + "/whoami", true);
+        req.setRequestHeader('Accept', 'application/json');
+        req.setRequestHeader('Authorization', 'bearer ' + keycloakAuth.token);
+
+        req.onreadystatechange = function () {
+            if (req.readyState == 4) {
+                if (req.status == 200) {
+                    var data = JSON.parse(req.responseText);
+                    success(data);
+                } else {
+                    error();
+                }
+            }
+        }
+
+        req.send();
+    }
+
+    function hasAnyAccess(user) {
+        return user && user['realm_access'];
+    }
 
     keycloakAuth.onAuthLogout = function() {
         location.reload();
@@ -20,10 +44,27 @@ angular.element(document).ready(function () {
 
     keycloakAuth.init({ onLoad: 'login-required' }).success(function () {
         auth.authz = keycloakAuth;
-        module.factory('Auth', function() {
-            return auth;
+
+        auth.refreshPermissions = function(success, error) {
+            whoAmI(function(data) {
+                auth.user = data;
+                auth.loggedIn = true;
+                auth.hasAnyAccess = hasAnyAccess(data);
+
+                success();
+            }, function() {
+                error();
+            });
+        };
+
+        auth.refreshPermissions(function() {
+            module.factory('Auth', function() {
+                return auth;
+            });
+            angular.bootstrap(document, ["keycloak"]);
+        }, function() {
+            window.location.reload();
         });
-        angular.bootstrap(document, ["keycloak"]);
     }).error(function () {
         window.location.reload();
     });
@@ -52,8 +93,18 @@ module.factory('authInterceptor', function($q, Auth) {
     };
 });
 
-
-
+module.config(['$translateProvider', function($translateProvider) {
+    $translateProvider.useSanitizeValueStrategy('sanitizeParameters');
+    
+    var locale = auth.authz.idTokenParsed.locale;
+    if (locale !== undefined) {
+        $translateProvider.preferredLanguage(locale);
+    } else {
+        $translateProvider.preferredLanguage('en');
+    }
+    
+    $translateProvider.useUrlLoader('messages.json');
+}]);
 
 module.config([ '$routeProvider', function($routeProvider) {
     $routeProvider
@@ -148,6 +199,9 @@ module.config([ '$routeProvider', function($routeProvider) {
                 },
                 providerFactory : function(IdentityProviderFactoryLoader) {
                     return {};
+                },
+                authFlows : function(AuthenticationFlowsLoader) {
+                    return {};
                 }
             },
             controller : 'RealmIdentityProviderCtrl'
@@ -166,6 +220,9 @@ module.config([ '$routeProvider', function($routeProvider) {
                 },
                 providerFactory : function(IdentityProviderFactoryLoader) {
                     return new IdentityProviderFactoryLoader();
+                },
+                authFlows : function(AuthenticationFlowsLoader) {
+                    return AuthenticationFlowsLoader();
                 }
             },
             controller : 'RealmIdentityProviderCtrl'
@@ -184,6 +241,9 @@ module.config([ '$routeProvider', function($routeProvider) {
                 },
                 providerFactory : function(IdentityProviderFactoryLoader) {
                     return IdentityProviderFactoryLoader();
+                },
+                authFlows : function(AuthenticationFlowsLoader) {
+                    return AuthenticationFlowsLoader();
                 }
             },
             controller : 'RealmIdentityProviderCtrl'
@@ -447,6 +507,24 @@ module.config([ '$routeProvider', function($routeProvider) {
             },
             controller : 'UserConsentsCtrl'
         })
+        .when('/realms/:realm/users/:user/offline-sessions/:client', {
+            templateUrl : resourceUrl + '/partials/user-offline-sessions.html',
+            resolve : {
+                realm : function(RealmLoader) {
+                    return RealmLoader();
+                },
+                user : function(UserLoader) {
+                    return UserLoader();
+                },
+                client : function(ClientLoader) {
+                    return ClientLoader();
+                },
+                offlineSessions : function(UserOfflineSessionsLoader) {
+                    return UserOfflineSessionsLoader();
+                }
+            },
+            controller : 'UserOfflineSessionsCtrl'
+        })
         .when('/realms/:realm/users', {
             templateUrl : resourceUrl + '/partials/user-list.html',
             resolve : {
@@ -505,6 +583,73 @@ module.config([ '$routeProvider', function($routeProvider) {
             },
             controller : 'RoleListCtrl'
         })
+        .when('/realms/:realm/groups', {
+            templateUrl : resourceUrl + '/partials/group-list.html',
+            resolve : {
+                realm : function(RealmLoader) {
+                    return RealmLoader();
+                },
+                groups : function(GroupListLoader) {
+                    return GroupListLoader();
+                }
+            },
+            controller : 'GroupListCtrl'
+        })
+        .when('/create/group/:realm/parent/:parentId', {
+            templateUrl : resourceUrl + '/partials/create-group.html',
+            resolve : {
+                realm : function(RealmLoader) {
+                    return RealmLoader();
+                },
+                parentId : function($route) {
+                    return $route.current.params.parentId;
+                }
+            },
+            controller : 'GroupCreateCtrl'
+        })
+        .when('/realms/:realm/groups/:group', {
+            templateUrl : resourceUrl + '/partials/group-detail.html',
+            resolve : {
+                realm : function(RealmLoader) {
+                    return RealmLoader();
+                },
+                group : function(GroupLoader) {
+                    return GroupLoader();
+                }
+            },
+            controller : 'GroupDetailCtrl'
+        })
+        .when('/realms/:realm/groups/:group/attributes', {
+            templateUrl : resourceUrl + '/partials/group-attributes.html',
+            resolve : {
+                realm : function(RealmLoader) {
+                    return RealmLoader();
+                },
+                group : function(GroupLoader) {
+                    return GroupLoader();
+                }
+           },
+            controller : 'GroupDetailCtrl'
+        })
+        .when('/realms/:realm/groups/:group/role-mappings', {
+            templateUrl : resourceUrl + '/partials/group-role-mappings.html',
+            resolve : {
+                realm : function(RealmLoader) {
+                    return RealmLoader();
+                },
+                group : function(GroupLoader) {
+                    return GroupLoader();
+                },
+                clients : function(ClientListLoader) {
+                    return ClientListLoader();
+                },
+                client : function() {
+                    return {};
+                }
+            },
+            controller : 'GroupRoleMappingCtrl'
+        })
+
 
         .when('/create/role/:realm/clients/:client', {
             templateUrl : resourceUrl + '/partials/client-role-detail.html',
@@ -626,6 +771,21 @@ module.config([ '$routeProvider', function($routeProvider) {
                 }
             },
             controller : 'ClientSessionsCtrl'
+        })
+        .when('/realms/:realm/clients/:client/offline-access', {
+            templateUrl : resourceUrl + '/partials/client-offline-sessions.html',
+            resolve : {
+                realm : function(RealmLoader) {
+                    return RealmLoader();
+                },
+                client : function(ClientLoader) {
+                    return ClientLoader();
+                },
+                offlineSessionCount : function(ClientOfflineSessionCountLoader) {
+                    return ClientOfflineSessionCountLoader();
+                }
+            },
+            controller : 'ClientOfflineSessionsCtrl'
         })
         .when('/realms/:realm/clients/:client/credentials', {
             templateUrl : resourceUrl + '/partials/client-credentials.html',
@@ -1255,11 +1415,14 @@ module.config([ '$routeProvider', function($routeProvider) {
             },
             controller : 'RealmOtpPolicyCtrl'
         })
-        .when('/realms/:realm/authentication/config/:provider/:config', {
+        .when('/realms/:realm/authentication/flows/:flow/config/:provider/:config', {
             templateUrl : resourceUrl + '/partials/authenticator-config.html',
             resolve : {
                 realm : function(RealmLoader) {
                     return RealmLoader();
+                },
+                flow : function(AuthenticationFlowLoader) {
+                    return AuthenticationFlowLoader();
                 },
                 configType : function(AuthenticationConfigDescriptionLoader) {
                     return AuthenticationConfigDescriptionLoader();
@@ -1270,11 +1433,14 @@ module.config([ '$routeProvider', function($routeProvider) {
             },
             controller : 'AuthenticationConfigCtrl'
         })
-        .when('/create/authentication/:realm/execution/:executionId/provider/:provider', {
+        .when('/create/authentication/:realm/flows/:flow/execution/:executionId/provider/:provider', {
             templateUrl : resourceUrl + '/partials/authenticator-config.html',
             resolve : {
                 realm : function(RealmLoader) {
                     return RealmLoader();
+                },
+                flow : function(AuthenticationFlowLoader) {
+                    return AuthenticationFlowLoader();
                 },
                 configType : function(AuthenticationConfigDescriptionLoader) {
                     return AuthenticationConfigDescriptionLoader();
@@ -1510,12 +1676,13 @@ module.directive('onoffswitchstring', function() {
 });
 
 /**
- * Directive for presenting an ON-OFF switch for checkbox.
+ * Directive for presenting an ON-OFF switch for checkbox. The directive expects the true-value or false-value to be string like 'true' or 'false', not boolean true/false.
  * This directive provides some additional capabilities to the default onoffswitch such as:
  *
- * - Specific scope to specify the value. Instead of just true or false.
+ * - Specific scope to specify the value. Instead of just 'true' or 'false' you can use any other values. For example: true-value="'foo'" false-value="'bar'" .
+ * But 'true'/'false' are defaults if true-value and false-value are not specified
  *
- * Usage: <input ng-model="mmm" name="nnn" id="iii" onoffswitchvalue [on-text="ooo" off-text="fff"] />
+ * Usage: <input ng-model="mmm" name="nnn" id="iii" onoffswitchvalue [ true-value="'true'" false-value="'false'" on-text="ooo" off-text="fff"] />
  */
 module.directive('onoffswitchvalue', function() {
     return {
@@ -1524,7 +1691,8 @@ module.directive('onoffswitchvalue', function() {
         scope: {
             name: '@',
             id: '@',
-            value: '=',
+            trueValue: '@',
+            falseValue: '@',
             ngModel: '=',
             ngDisabled: '=',
             kcOnText: '@onText',
@@ -1532,7 +1700,7 @@ module.directive('onoffswitchvalue', function() {
         },
         // TODO - The same code acts differently when put into the templateURL. Find why and move the code there.
         //templateUrl: "templates/kc-switch.html",
-        template: "<span><div class='onoffswitch' tabindex='0'><input type='checkbox' ng-true-value='{{value}}' ng-model='ngModel' ng-disabled='ngDisabled' class='onoffswitch-checkbox' name='{{name}}' id='{{id}}'><label for='{{id}}' class='onoffswitch-label'><span class='onoffswitch-inner'><span class='onoffswitch-active'>{{kcOnText}}</span><span class='onoffswitch-inactive'>{{kcOffText}}</span></span><span class='onoffswitch-switch'></span></label></div></span>",
+        template: "<span><div class='onoffswitch' tabindex='0'><input type='checkbox' ng-true-value='{{trueValue}}' ng-false-value='{{falseValue}}' ng-model='ngModel' ng-disabled='ngDisabled' class='onoffswitch-checkbox' name='{{name}}' id='{{id}}'><label for='{{id}}' class='onoffswitch-label'><span class='onoffswitch-inner'><span class='onoffswitch-active'>{{kcOnText}}</span><span class='onoffswitch-inactive'>{{kcOffText}}</span></span><span class='onoffswitch-switch'></span></label></div></span>",
         compile: function(element, attrs) {
             /*
              We don't want to propagate basic attributes to the root element of directive. Id should be passed to the
@@ -1540,6 +1708,9 @@ module.directive('onoffswitchvalue', function() {
              */
             element.removeAttr('name');
             element.removeAttr('id');
+
+            if (!attrs.trueValue) { attrs.trueValue = "'true'"; }
+            if (!attrs.falseValue) { attrs.falseValue = "'false'"; }
 
             if (!attrs.onText) { attrs.onText = "ON"; }
             if (!attrs.offText) { attrs.offText = "OFF"; }
@@ -1767,6 +1938,15 @@ module.directive('kcTabsUser', function () {
     }
 });
 
+module.directive('kcTabsGroup', function () {
+    return {
+        scope: true,
+        restrict: 'E',
+        replace: true,
+        templateUrl: resourceUrl + '/templates/kc-tabs-group.html'
+    }
+});
+
 module.directive('kcTabsClient', function () {
     return {
         scope: true,
@@ -1959,16 +2139,11 @@ module.filter('capitalize', function() {
         if (!input) {
             return;
         }
-        var result = input.substring(0, 1).toUpperCase();
-        var s = input.substring(1);
-        for (var i=0; i<s.length ; i++) {
-            var c = s[i];
-            if (c.match(/[A-Z]/)) {
-                result = result.concat(" ")
-            };
-            result = result.concat(c);
+        var splittedWords = input.split(/\s+/);
+        for (var i=0; i<splittedWords.length ; i++) {
+            splittedWords[i] = splittedWords[i].charAt(0).toUpperCase() + splittedWords[i].slice(1);
         };
-        return result;
+        return splittedWords.join(" ");
     };
 });
 
@@ -2034,5 +2209,28 @@ module.directive( 'kcOpen', function ( $location ) {
                 $location.path(path);
             });
         });
+    };
+});
+
+module.directive('kcOnReadFile', function ($parse) {
+    console.debug('kcOnReadFile');
+    return {
+        restrict: 'A',
+        scope: false,
+        link: function(scope, element, attrs) {
+            var fn = $parse(attrs.kcOnReadFile);
+
+            element.on('change', function(onChangeEvent) {
+                var reader = new FileReader();
+
+                reader.onload = function(onLoadEvent) {
+                    scope.$apply(function() {
+                        fn(scope, {$fileContent:onLoadEvent.target.result});
+                    });
+                };
+
+                reader.readAsText((onChangeEvent.srcElement || onChangeEvent.target).files[0]);
+            });
+        }
     };
 });

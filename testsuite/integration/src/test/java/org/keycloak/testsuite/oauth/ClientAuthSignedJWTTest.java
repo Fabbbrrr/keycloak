@@ -20,7 +20,7 @@ import org.junit.Test;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.adapters.authentication.JWTClientCredentialsProvider;
 import org.keycloak.authentication.authenticators.client.JWTClientAuthenticator;
-import org.keycloak.constants.ServiceAccountConstants;
+import org.keycloak.common.constants.ServiceAccountConstants;
 import org.keycloak.constants.ServiceUrlConstants;
 import org.keycloak.events.Details;
 import org.keycloak.events.Errors;
@@ -37,10 +37,10 @@ import org.keycloak.testsuite.OAuthClient;
 import org.keycloak.testsuite.rule.KeycloakRule;
 import org.keycloak.testsuite.rule.WebResource;
 import org.keycloak.testsuite.rule.WebRule;
-import org.keycloak.util.KeycloakUriBuilder;
-import org.keycloak.util.KeystoreUtil;
-import org.keycloak.util.Time;
-import org.keycloak.util.UriUtils;
+import org.keycloak.common.util.KeycloakUriBuilder;
+import org.keycloak.common.util.KeystoreUtil;
+import org.keycloak.common.util.Time;
+import org.keycloak.common.util.UriUtils;
 import org.openqa.selenium.WebDriver;
 
 import static org.junit.Assert.assertEquals;
@@ -212,7 +212,7 @@ public class ClientAuthSignedJWTTest {
         HttpResponse resp = sendRequest(oauth.getServiceAccountUrl(), parameters);
         OAuthClient.AccessTokenResponse response = new OAuthClient.AccessTokenResponse(resp);
 
-        assertError(response, null, "invalid_client", Errors.INVALID_CLIENT);
+        assertError(response, null, "unauthorized_client", Errors.INVALID_CLIENT_CREDENTIALS);
     }
 
     @Test
@@ -224,7 +224,7 @@ public class ClientAuthSignedJWTTest {
         HttpResponse resp = sendRequest(oauth.getServiceAccountUrl(), parameters);
         OAuthClient.AccessTokenResponse response = new OAuthClient.AccessTokenResponse(resp);
 
-        assertError(response, null, "invalid_client", Errors.INVALID_CLIENT);
+        assertError(response, null, "unauthorized_client", Errors.INVALID_CLIENT_CREDENTIALS);
     }
 
     @Test
@@ -236,7 +236,7 @@ public class ClientAuthSignedJWTTest {
         HttpResponse resp = sendRequest(oauth.getServiceAccountUrl(), parameters);
         OAuthClient.AccessTokenResponse response = new OAuthClient.AccessTokenResponse(resp);
 
-        assertError(response, null, "invalid_client", Errors.INVALID_CLIENT_CREDENTIALS);
+        assertError(response, null, "unauthorized_client", Errors.INVALID_CLIENT_CREDENTIALS);
     }
 
     @Test
@@ -268,7 +268,7 @@ public class ClientAuthSignedJWTTest {
         HttpResponse resp = sendRequest(oauth.getServiceAccountUrl(), parameters);
         OAuthClient.AccessTokenResponse response = new OAuthClient.AccessTokenResponse(resp);
 
-        assertError(response, "unknown-client", "invalid_client", Errors.CLIENT_NOT_FOUND);
+        assertError(response, "unknown-client", "unauthorized_client", Errors.INVALID_CLIENT_CREDENTIALS);
     }
 
     @Test

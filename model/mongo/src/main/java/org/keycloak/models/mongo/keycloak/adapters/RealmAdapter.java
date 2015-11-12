@@ -4,11 +4,12 @@ import com.mongodb.DBObject;
 import com.mongodb.QueryBuilder;
 
 import org.keycloak.connections.mongo.api.context.MongoStoreInvocationContext;
-import org.keycloak.enums.SslRequired;
+import org.keycloak.common.enums.SslRequired;
 import org.keycloak.models.AuthenticationExecutionModel;
 import org.keycloak.models.AuthenticationFlowModel;
 import org.keycloak.models.AuthenticatorConfigModel;
 import org.keycloak.models.ClientModel;
+import org.keycloak.models.GroupModel;
 import org.keycloak.models.IdentityProviderMapperModel;
 import org.keycloak.models.IdentityProviderModel;
 import org.keycloak.models.KeycloakSession;
@@ -34,6 +35,7 @@ import org.keycloak.models.entities.RequiredCredentialEntity;
 import org.keycloak.models.entities.UserFederationMapperEntity;
 import org.keycloak.models.entities.UserFederationProviderEntity;
 import org.keycloak.models.mongo.keycloak.entities.MongoClientEntity;
+import org.keycloak.models.mongo.keycloak.entities.MongoGroupEntity;
 import org.keycloak.models.mongo.keycloak.entities.MongoRealmEntity;
 import org.keycloak.models.mongo.keycloak.entities.MongoRoleEntity;
 import org.keycloak.models.utils.KeycloakModelUtils;
@@ -311,6 +313,16 @@ public class RealmAdapter extends AbstractMongoAdapter<MongoRealmEntity> impleme
         updateRealm();
     }
 
+    @Override
+    public boolean isRevokeRefreshToken() {
+        return realm.isRevokeRefreshToken();
+    }
+
+    @Override
+    public void setRevokeRefreshToken(boolean revokeRefreshToken) {
+        realm.setRevokeRefreshToken(revokeRefreshToken);
+        updateRealm();
+    }
 
     @Override
     public int getSsoSessionIdleTimeout() {
@@ -331,6 +343,17 @@ public class RealmAdapter extends AbstractMongoAdapter<MongoRealmEntity> impleme
     @Override
     public void setSsoSessionMaxLifespan(int seconds) {
         realm.setSsoSessionMaxLifespan(seconds);
+        updateRealm();
+    }
+
+    @Override
+    public int getOfflineSessionIdleTimeout() {
+        return realm.getOfflineSessionIdleTimeout();
+    }
+
+    @Override
+    public void setOfflineSessionIdleTimeout(int seconds) {
+        realm.setOfflineSessionIdleTimeout(seconds);
         updateRealm();
     }
 
@@ -587,6 +610,79 @@ public class RealmAdapter extends AbstractMongoAdapter<MongoRealmEntity> impleme
     }
 
     @Override
+    public GroupModel createGroup(String name) {
+        MongoGroupEntity group = new MongoGroupEntity();
+        group.setId(KeycloakModelUtils.generateId());
+        group.setName(name);
+        group.setRealmId(getId());
+
+        getMongoStore().insertEntity(group, invocationContext);
+
+        return new GroupAdapter(session, this, group, invocationContext);
+    }
+
+    @Override
+    public void addTopLevelGroup(GroupModel subGroup) {
+        subGroup.setParent(null);
+
+    }
+
+    @Override
+    public void moveGroup(GroupModel group, GroupModel toParent) {
+        if (group.getParentId() != null) {
+            group.getParent().removeChild(group);
+        }
+        group.setParent(toParent);
+        if (toParent != null) toParent.addChild(group);
+        else addTopLevelGroup(group);
+    }
+
+    @Override
+    public GroupModel getGroupById(String id) {
+        return model.getGroupById(id, this);
+    }
+
+    @Override
+    public List<GroupModel> getGroups() {
+        DBObject query = new QueryBuilder()
+                .and("realmId").is(getId())
+                .get();
+        List<MongoGroupEntity> groups = getMongoStore().loadEntities(MongoGroupEntity.class, query, invocationContext);
+
+        List<GroupModel> result = new LinkedList<>();
+
+        if (groups == null) return result;
+        for (MongoGroupEntity group : groups) {
+            result.add(new GroupAdapter(session, this, group, invocationContext));
+        }
+
+        return result;
+    }
+
+    @Override
+    public List<GroupModel> getTopLevelGroups() {
+        List<GroupModel> all = getGroups();
+        Iterator<GroupModel> it = all.iterator();
+        while (it.hasNext()) {
+            GroupModel group = it.next();
+            if (group.getParent() != null) {
+                it.remove();
+            }
+        }
+        return all;
+    }
+
+    @Override
+    public boolean removeGroup(GroupModel group) {
+        for (GroupModel subGroup : group.getSubGroups()) {
+            removeGroup(subGroup);
+        }
+        session.users().preRemove(this, group);
+        moveGroup(group, null);
+        return getMongoStore().removeEntity(MongoGroupEntity.class, group.getId(), invocationContext);
+    }
+
+    @Override
     public List<String> getDefaultRoles() {
         return realm.getDefaultRoles();
     }
@@ -802,9 +898,9 @@ public class RealmAdapter extends AbstractMongoAdapter<MongoRealmEntity> impleme
             identityProviderModel.setInternalId(entity.getInternalId());
             identityProviderModel.setConfig(entity.getConfig());
             identityProviderModel.setEnabled(entity.isEnabled());
-            identityProviderModel.setUpdateProfileFirstLoginMode(entity.getUpdateProfileFirstLoginMode());
             identityProviderModel.setTrustEmail(entity.isTrustEmail());
             identityProviderModel.setAuthenticateByDefault(entity.isAuthenticateByDefault());
+            identityProviderModel.setFirstBrokerLoginFlowId(entity.getFirstBrokerLoginFlowId());
             identityProviderModel.setStoreToken(entity.isStoreToken());
             identityProviderModel.setAddReadTokenRoleOnCreate(entity.isAddReadTokenRoleOnCreate());
 
@@ -833,11 +929,11 @@ public class RealmAdapter extends AbstractMongoAdapter<MongoRealmEntity> impleme
         entity.setAlias(identityProvider.getAlias());
         entity.setProviderId(identityProvider.getProviderId());
         entity.setEnabled(identityProvider.isEnabled());
-        entity.setUpdateProfileFirstLoginMode(identityProvider.getUpdateProfileFirstLoginMode());
         entity.setTrustEmail(identityProvider.isTrustEmail());
         entity.setAddReadTokenRoleOnCreate(identityProvider.isAddReadTokenRoleOnCreate());
         entity.setStoreToken(identityProvider.isStoreToken());
         entity.setAuthenticateByDefault(identityProvider.isAuthenticateByDefault());
+        entity.setFirstBrokerLoginFlowId(identityProvider.getFirstBrokerLoginFlowId());
         entity.setConfig(identityProvider.getConfig());
 
         realm.getIdentityProviders().add(entity);
@@ -861,9 +957,9 @@ public class RealmAdapter extends AbstractMongoAdapter<MongoRealmEntity> impleme
             if (entity.getInternalId().equals(identityProvider.getInternalId())) {
                 entity.setAlias(identityProvider.getAlias());
                 entity.setEnabled(identityProvider.isEnabled());
-                entity.setUpdateProfileFirstLoginMode(identityProvider.getUpdateProfileFirstLoginMode());
                 entity.setTrustEmail(identityProvider.isTrustEmail());
                 entity.setAuthenticateByDefault(identityProvider.isAuthenticateByDefault());
+                entity.setFirstBrokerLoginFlowId(identityProvider.getFirstBrokerLoginFlowId());
                 entity.setAddReadTokenRoleOnCreate(identityProvider.isAddReadTokenRoleOnCreate());
                 entity.setStoreToken(identityProvider.isStoreToken());
                 entity.setConfig(identityProvider.getConfig());
@@ -1649,6 +1745,7 @@ public class RealmAdapter extends AbstractMongoAdapter<MongoRealmEntity> impleme
         RequiredActionProviderEntity auth = new RequiredActionProviderEntity();
         auth.setId(KeycloakModelUtils.generateId());
         auth.setAlias(model.getAlias());
+        auth.setName(model.getName());
         auth.setProviderId(model.getProviderId());
         auth.setConfig(model.getConfig());
         auth.setEnabled(model.isEnabled());
@@ -1679,6 +1776,7 @@ public class RealmAdapter extends AbstractMongoAdapter<MongoRealmEntity> impleme
         model.setId(entity.getId());
         model.setProviderId(entity.getProviderId());
         model.setAlias(entity.getAlias());
+        model.setName(entity.getName());
         model.setEnabled(entity.isEnabled());
         model.setDefaultAction(entity.isDefaultAction());
         Map<String, String> config = new HashMap<>();

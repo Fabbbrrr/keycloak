@@ -12,6 +12,7 @@ import org.jboss.logging.Logger;
 import org.keycloak.federation.kerberos.impl.KerberosUsernamePasswordAuthenticator;
 import org.keycloak.federation.kerberos.impl.SPNEGOAuthenticator;
 import org.keycloak.models.CredentialValidationOutput;
+import org.keycloak.models.GroupModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RoleModel;
@@ -20,7 +21,7 @@ import org.keycloak.models.UserCredentialValueModel;
 import org.keycloak.models.UserFederationProvider;
 import org.keycloak.models.UserFederationProviderModel;
 import org.keycloak.models.UserModel;
-import org.keycloak.constants.KerberosConstants;
+import org.keycloak.common.constants.KerberosConstants;
 
 /**
  * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>
@@ -102,6 +103,11 @@ public class KerberosFederationProvider implements UserFederationProvider {
 
     @Override
     public void preRemove(RealmModel realm, RoleModel role) {
+
+    }
+
+    @Override
+    public void preRemove(RealmModel realm, GroupModel group) {
 
     }
 
@@ -244,7 +250,7 @@ public class KerberosFederationProvider implements UserFederationProvider {
         // Just guessing email from kerberos realm
         String email = username + "@" + kerberosConfig.getKerberosRealm().toLowerCase();
 
-        logger.info("Creating kerberos user: " + username + ", email: " + email + " to local Keycloak storage");
+        logger.debugf("Creating kerberos user: %s, email: %s to local Keycloak storage", username, email);
         UserModel user = session.userStorage().addUser(realm, username);
         user.setEnabled(true);
         user.setEmail(email);

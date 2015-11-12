@@ -1,6 +1,6 @@
 package org.keycloak.models;
 
-import org.keycloak.enums.SslRequired;
+import org.keycloak.common.enums.SslRequired;
 import org.keycloak.provider.ProviderEvent;
 
 import java.security.Key;
@@ -91,11 +91,17 @@ public interface RealmModel extends RoleContainerModel {
 
     void setResetPasswordAllowed(boolean resetPasswordAllowed);
 
+    boolean isRevokeRefreshToken();
+    void setRevokeRefreshToken(boolean revokeRefreshToken);
+
     int getSsoSessionIdleTimeout();
     void setSsoSessionIdleTimeout(int seconds);
 
     int getSsoSessionMaxLifespan();
     void setSsoSessionMaxLifespan(int seconds);
+
+    int getOfflineSessionIdleTimeout();
+    void setOfflineSessionIdleTimeout(int seconds);
 
     int getAccessTokenLifespan();
 
@@ -286,6 +292,10 @@ public interface RealmModel extends RoleContainerModel {
 
     void setEventsEnabled(boolean enabled);
 
+//    boolean isPersistUserSessions();
+//
+//    void setPersistUserSessions();
+
     long getEventsExpiration();
 
     void setEventsExpiration(long expiration);
@@ -318,4 +328,19 @@ public interface RealmModel extends RoleContainerModel {
     void setSupportedLocales(Set<String> locales);
     String getDefaultLocale();
     void setDefaultLocale(String locale);
+
+    GroupModel createGroup(String name);
+
+    /**
+     * Move Group to top realm level.  Basically just sets group parent to null.  You need to call this though
+     * to make sure caches are set properly
+     *
+     * @param subGroup
+     */
+    void addTopLevelGroup(GroupModel subGroup);
+    GroupModel getGroupById(String id);
+    List<GroupModel> getGroups();
+    List<GroupModel> getTopLevelGroups();
+    boolean removeGroup(GroupModel group);
+    void moveGroup(GroupModel group, GroupModel toParent);
 }

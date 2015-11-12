@@ -21,6 +21,7 @@ import org.keycloak.models.ClientModel;
 
 import static org.keycloak.models.utils.Pbkdf2PasswordEncoder.getSalt;
 
+import org.keycloak.models.GroupModel;
 import org.keycloak.models.ModelDuplicateException;
 import org.keycloak.models.OTPPolicy;
 import org.keycloak.models.UserConsentModel;
@@ -36,7 +37,7 @@ import org.keycloak.models.entities.RoleEntity;
 import org.keycloak.models.entities.UserEntity;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.models.utils.Pbkdf2PasswordEncoder;
-import org.keycloak.util.Time;
+import org.keycloak.common.util.Time;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -46,8 +47,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import static org.keycloak.models.utils.Pbkdf2PasswordEncoder.getSalt;
 
 /**
  * UserModel for JSON persistence.
@@ -61,6 +60,7 @@ public class UserAdapter implements UserModel, Comparable {
     private final RealmModel realm;
 
     private final Set<RoleModel> allRoles = new HashSet<RoleModel>();
+    private final Set<GroupModel> allGroups = new HashSet<GroupModel>();
 
     public UserAdapter(RealmModel realm, UserEntity userEntity, InMemoryModel inMemoryModel) {
         this.user = userEntity;
@@ -216,7 +216,7 @@ public class UserAdapter implements UserModel, Comparable {
 
     @Override
     public Map<String, List<String>> getAttributes() {
-        return user.getAttributes()==null ? Collections.<String, List<String>>emptyMap() : Collections.unmodifiableMap((Map)user.getAttributes());
+        return user.getAttributes()==null ? Collections.<String, List<String>>emptyMap() : Collections.unmodifiableMap((Map) user.getAttributes());
     }
 
     @Override
@@ -470,6 +470,29 @@ public class UserAdapter implements UserModel, Comparable {
     }
 
     @Override
+    public Set<GroupModel> getGroups() {
+        return Collections.unmodifiableSet(allGroups);
+    }
+
+    @Override
+    public void joinGroup(GroupModel group) {
+        allGroups.add(group);
+
+    }
+
+    @Override
+    public void leaveGroup(GroupModel group) {
+        if (user == null || group == null) return;
+        allGroups.remove(group);
+
+    }
+
+    @Override
+    public boolean isMemberOf(GroupModel group) {
+        return KeycloakModelUtils.isMember(getGroups(), group);
+    }
+
+    @Override
     public boolean hasRole(RoleModel role) {
         Set<RoleModel> roles = getRoleMappings();
         return KeycloakModelUtils.hasRole(roles, role);
@@ -567,6 +590,7 @@ public class UserAdapter implements UserModel, Comparable {
         // TODO
         return false;
     }
+
 
     @Override
     public boolean equals(Object o) {

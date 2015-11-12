@@ -1,11 +1,12 @@
 package org.keycloak.models.jpa;
 
 import org.keycloak.connections.jpa.util.JpaUtils;
-import org.keycloak.enums.SslRequired;
+import org.keycloak.common.enums.SslRequired;
 import org.keycloak.models.AuthenticationExecutionModel;
 import org.keycloak.models.AuthenticationFlowModel;
 import org.keycloak.models.AuthenticatorConfigModel;
 import org.keycloak.models.ClientModel;
+import org.keycloak.models.GroupModel;
 import org.keycloak.models.IdentityProviderMapperModel;
 import org.keycloak.models.IdentityProviderModel;
 import org.keycloak.models.KeycloakSession;
@@ -24,6 +25,7 @@ import org.keycloak.models.jpa.entities.AuthenticationExecutionEntity;
 import org.keycloak.models.jpa.entities.AuthenticationFlowEntity;
 import org.keycloak.models.jpa.entities.AuthenticatorConfigEntity;
 import org.keycloak.models.jpa.entities.ClientEntity;
+import org.keycloak.models.jpa.entities.GroupEntity;
 import org.keycloak.models.jpa.entities.IdentityProviderEntity;
 import org.keycloak.models.jpa.entities.IdentityProviderMapperEntity;
 import org.keycloak.models.jpa.entities.RealmAttributeEntity;
@@ -337,6 +339,16 @@ public class RealmAdapter implements RealmModel {
     }
 
     @Override
+    public boolean isRevokeRefreshToken() {
+        return realm.isRevokeRefreshToken();
+    }
+
+    @Override
+    public void setRevokeRefreshToken(boolean revokeRefreshToken) {
+        realm.setRevokeRefreshToken(revokeRefreshToken);
+    }
+
+    @Override
     public int getAccessTokenLifespan() {
         return realm.getAccessTokenLifespan();
     }
@@ -365,6 +377,16 @@ public class RealmAdapter implements RealmModel {
     @Override
     public void setSsoSessionMaxLifespan(int seconds) {
         realm.setSsoSessionMaxLifespan(seconds);
+    }
+
+    @Override
+    public int getOfflineSessionIdleTimeout() {
+        return realm.getOfflineSessionIdleTimeout();
+    }
+
+    @Override
+    public void setOfflineSessionIdleTimeout(int seconds) {
+        realm.setOfflineSessionIdleTimeout(seconds);
     }
 
     @Override
@@ -1196,9 +1218,9 @@ public class RealmAdapter implements RealmModel {
             identityProviderModel.setInternalId(entity.getInternalId());
             identityProviderModel.setConfig(entity.getConfig());
             identityProviderModel.setEnabled(entity.isEnabled());
-            identityProviderModel.setUpdateProfileFirstLoginMode(entity.getUpdateProfileFirstLoginMode());
             identityProviderModel.setTrustEmail(entity.isTrustEmail());
             identityProviderModel.setAuthenticateByDefault(entity.isAuthenticateByDefault());
+            identityProviderModel.setFirstBrokerLoginFlowId(entity.getFirstBrokerLoginFlowId());
             identityProviderModel.setStoreToken(entity.isStoreToken());
             identityProviderModel.setAddReadTokenRoleOnCreate(entity.isAddReadTokenRoleOnCreate());
 
@@ -1229,9 +1251,9 @@ public class RealmAdapter implements RealmModel {
         entity.setEnabled(identityProvider.isEnabled());
         entity.setStoreToken(identityProvider.isStoreToken());
         entity.setAddReadTokenRoleOnCreate(identityProvider.isAddReadTokenRoleOnCreate());
-        entity.setUpdateProfileFirstLoginMode(identityProvider.getUpdateProfileFirstLoginMode());
         entity.setTrustEmail(identityProvider.isTrustEmail());
         entity.setAuthenticateByDefault(identityProvider.isAuthenticateByDefault());
+        entity.setFirstBrokerLoginFlowId(identityProvider.getFirstBrokerLoginFlowId());
         entity.setConfig(identityProvider.getConfig());
 
         realm.addIdentityProvider(entity);
@@ -1256,9 +1278,9 @@ public class RealmAdapter implements RealmModel {
             if (entity.getInternalId().equals(identityProvider.getInternalId())) {
                 entity.setAlias(identityProvider.getAlias());
                 entity.setEnabled(identityProvider.isEnabled());
-                entity.setUpdateProfileFirstLoginMode(identityProvider.getUpdateProfileFirstLoginMode());
                 entity.setTrustEmail(identityProvider.isTrustEmail());
                 entity.setAuthenticateByDefault(identityProvider.isAuthenticateByDefault());
+                entity.setFirstBrokerLoginFlowId(identityProvider.getFirstBrokerLoginFlowId());
                 entity.setAddReadTokenRoleOnCreate(identityProvider.isAddReadTokenRoleOnCreate());
                 entity.setStoreToken(identityProvider.isStoreToken());
                 entity.setConfig(identityProvider.getConfig());
@@ -1923,5 +1945,85 @@ public class RealmAdapter implements RealmModel {
             if (action.getAlias().equals(alias)) return action;
         }
         return null;
+    }
+
+    @Override
+    public void moveGroup(GroupModel group, GroupModel toParent) {
+        if (group.getParentId() != null) {
+            group.getParent().removeChild(group);
+        }
+        group.setParent(toParent);
+        if (toParent != null) toParent.addChild(group);
+        else addTopLevelGroup(group);
+    }
+
+    @Override
+    public GroupModel getGroupById(String id) {
+        return session.realms().getGroupById(id, this);
+    }
+
+    @Override
+    public List<GroupModel> getGroups() {
+        List<GroupModel> list = new LinkedList<>();
+        Collection<GroupEntity> groups = realm.getGroups();
+        if (groups == null) return list;
+        for (GroupEntity entity : groups) {
+            list.add(new GroupAdapter(this, em, entity));
+        }
+        return list;
+    }
+
+    @Override
+    public List<GroupModel> getTopLevelGroups() {
+        List<GroupModel> all = getGroups();
+        Iterator<GroupModel> it = all.iterator();
+        while (it.hasNext()) {
+            GroupModel group = it.next();
+            if (group.getParent() != null) {
+                it.remove();
+            }
+        }
+        return all;
+    }
+
+    @Override
+    public boolean removeGroup(GroupModel group) {
+        if (group == null) {
+            return false;
+        }
+        GroupEntity groupEntity = GroupAdapter.toEntity(group, em);
+        if (!groupEntity.getRealm().getId().equals(getId())) {
+            return false;
+        }
+        for (GroupModel subGroup : group.getSubGroups()) {
+            removeGroup(subGroup);
+        }
+
+
+        session.users().preRemove(this, group);
+        moveGroup(group, null);
+        realm.getGroups().remove(groupEntity);
+        em.createNamedQuery("deleteGroupAttributesByGroup").setParameter("group", groupEntity).executeUpdate();
+        em.createNamedQuery("deleteGroupRoleMappingsByGroup").setParameter("group", groupEntity).executeUpdate();
+        em.remove(groupEntity);
+        return true;
+
+
+    }
+
+    @Override
+    public GroupModel createGroup(String name) {
+        GroupEntity groupEntity = new GroupEntity();
+        groupEntity.setId(KeycloakModelUtils.generateId());
+        groupEntity.setName(name);
+        groupEntity.setRealm(realm);
+        em.persist(groupEntity);
+
+        return new GroupAdapter(this, em, groupEntity);
+    }
+
+    @Override
+    public void addTopLevelGroup(GroupModel subGroup) {
+        subGroup.setParent(null);
     }
 }

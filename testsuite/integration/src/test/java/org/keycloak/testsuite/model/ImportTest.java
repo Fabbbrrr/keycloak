@@ -4,10 +4,9 @@ import org.junit.Assert;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
-import org.keycloak.constants.KerberosConstants;
+import org.keycloak.common.constants.KerberosConstants;
 import org.keycloak.federation.ldap.mappers.FullNameLDAPFederationMapper;
 import org.keycloak.federation.ldap.mappers.FullNameLDAPFederationMapperFactory;
-import org.keycloak.models.AuthenticationExecutionModel;
 import org.keycloak.models.AuthenticationFlowModel;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.Constants;
@@ -74,12 +73,13 @@ public class ImportTest extends AbstractModelTest {
     // Moved to static method, so it's possible to test this from other places too (for example export-import tests)
     public static void assertDataImportedInRealm(KeycloakSession session, RealmModel realm) {
         Assert.assertTrue(realm.isVerifyEmail());
+        Assert.assertEquals(3600000, realm.getOfflineSessionIdleTimeout());
 
         List<RequiredCredentialModel> creds = realm.getRequiredCredentials();
         Assert.assertEquals(1, creds.size());
         RequiredCredentialModel cred = creds.get(0);
         Assert.assertEquals("password", cred.getFormLabel());
-        Assert.assertEquals(2, realm.getDefaultRoles().size());
+        Assert.assertEquals(3, realm.getDefaultRoles().size());
 
         Assert.assertNotNull(realm.getRole("foo"));
         Assert.assertNotNull(realm.getRole("bar"));
@@ -131,6 +131,10 @@ public class ImportTest extends AbstractModelTest {
         Assert.assertTrue(allRoles.contains(realm.getRole("admin")));
         Assert.assertTrue(allRoles.contains(application.getRole("app-admin")));
         Assert.assertTrue(allRoles.contains(otherApp.getRole("otherapp-admin")));
+
+        Assert.assertTrue(application.getRole("app-admin").isScopeParamRequired());
+        Assert.assertFalse(otherApp.getRole("otherapp-admin").isScopeParamRequired());
+        Assert.assertFalse(otherApp.getRole("otherapp-user").isScopeParamRequired());
 
         UserModel wburke =  session.users().getUserByUsername("wburke", realm);
         // user with creation timestamp in import
@@ -340,6 +344,7 @@ public class ImportTest extends AbstractModelTest {
         RealmModel realm =manager.importRealm(rep);
 
         Assert.assertEquals(600, realm.getAccessCodeLifespanUserAction());
+        Assert.assertEquals(Constants.DEFAULT_OFFLINE_SESSION_IDLE_TIMEOUT, realm.getOfflineSessionIdleTimeout());
         verifyRequiredCredentials(realm.getRequiredCredentials(), "password");
     }
 

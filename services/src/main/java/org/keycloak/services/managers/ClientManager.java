@@ -5,22 +5,21 @@ import org.codehaus.jackson.annotate.JsonPropertyOrder;
 import org.jboss.logging.Logger;
 import org.keycloak.authentication.ClientAuthenticator;
 import org.keycloak.authentication.ClientAuthenticatorFactory;
-import org.keycloak.constants.ServiceAccountConstants;
+import org.keycloak.common.constants.ServiceAccountConstants;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.ProtocolMapperModel;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.UserSessionProvider;
+import org.keycloak.models.session.UserSessionPersisterProvider;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.mappers.UserSessionNoteMapper;
 import org.keycloak.representations.adapters.config.BaseRealmConfig;
-import org.keycloak.representations.idm.CredentialRepresentation;
-import org.keycloak.util.Time;
+import org.keycloak.common.util.Time;
 
 import java.net.URI;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +51,11 @@ public class ClientManager {
             UserSessionProvider sessions = realmManager.getSession().sessions();
             if (sessions != null) {
                 sessions.onClientRemoved(realm, client);
+            }
+
+            UserSessionPersisterProvider sessionsPersister = realmManager.getSession().getProvider(UserSessionPersisterProvider.class);
+            if (sessionsPersister != null) {
+                sessionsPersister.onClientRemoved(realm, client);
             }
 
             UserModel serviceAccountUser = realmManager.getSession().users().getUserByServiceAccountClient(client);
@@ -103,7 +107,7 @@ public class ClientManager {
         // Add dedicated user for this service account
         if (realmManager.getSession().users().getUserByServiceAccountClient(client) == null) {
             String username = ServiceAccountConstants.SERVICE_ACCOUNT_USER_PREFIX + client.getClientId();
-            logger.infof("Creating service account user '%s'", username);
+            logger.debugf("Creating service account user '%s'", username);
 
             // Don't use federation for service account user
             UserModel user = realmManager.getSession().userStorage().addUser(client.getRealm(), username);

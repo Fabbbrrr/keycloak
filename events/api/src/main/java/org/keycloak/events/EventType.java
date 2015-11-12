@@ -60,6 +60,8 @@ public enum EventType {
 
     IDENTITY_PROVIDER_LOGIN(false),
     IDENTITY_PROVIDER_LOGIN_ERROR(false),
+    IDENTITY_PROVIDER_FIRST_LOGIN(true),
+    IDENTITY_PROVIDER_FIRST_LOGIN_ERROR(true),
     IDENTITY_PROVIDER_RESPONSE(false),
     IDENTITY_PROVIDER_RESPONSE_ERROR(false),
     IDENTITY_PROVIDER_RETRIEVE_TOKEN(false),
@@ -69,7 +71,17 @@ public enum EventType {
     IMPERSONATE(true),
     CUSTOM_REQUIRED_ACTION(true),
     CUSTOM_REQUIRED_ACTION_ERROR(true),
-    EXECUTE_ACTIONS(true);
+    EXECUTE_ACTIONS(true),
+    EXECUTE_ACTIONS_ERROR(true),
+
+    CLIENT_INFO(false),
+    CLIENT_INFO_ERROR(false),
+    CLIENT_REGISTER(true),
+    CLIENT_REGISTER_ERROR(true),
+    CLIENT_UPDATE(true),
+    CLIENT_UPDATE_ERROR(true),
+    CLIENT_DELETE(true),
+    CLIENT_DELETE_ERROR(true);
 
     private boolean saveByDefault;
 
