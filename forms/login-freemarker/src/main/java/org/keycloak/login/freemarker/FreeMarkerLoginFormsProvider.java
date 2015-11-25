@@ -22,8 +22,9 @@ import org.keycloak.OAuth2Constants;
 import org.keycloak.authentication.requiredactions.util.UpdateProfileContext;
 import org.keycloak.authentication.requiredactions.util.UserUpdateProfileContext;
 import org.keycloak.broker.provider.BrokeredIdentityContext;
+import org.keycloak.common.util.ObjectUtil;
 import org.keycloak.email.EmailException;
-import org.keycloak.email.EmailProvider;
+import org.keycloak.email.EmailTemplateProvider;
 import org.keycloak.freemarker.BrowserSecurityHeaderSetup;
 import org.keycloak.freemarker.FreeMarkerException;
 import org.keycloak.freemarker.FreeMarkerUtil;
@@ -152,7 +153,7 @@ public class FreeMarkerLoginFormsProvider implements LoginFormsProvider {
                     String link = builder.build(realm.getName()).toString();
                     long expiration = TimeUnit.SECONDS.toMinutes(realm.getAccessCodeLifespanUserAction());
 
-                    session.getProvider(EmailProvider.class).setRealm(realm).setUser(user).sendVerifyEmail(link, expiration);
+                    session.getProvider(EmailTemplateProvider.class).setRealm(realm).setUser(user).sendVerifyEmail(link, expiration);
                 } catch (EmailException e) {
                     logger.error("Failed to send verification email", e);
                     return setError(Messages.EMAIL_SENT_ERROR).createErrorPage();
@@ -288,7 +289,7 @@ public class FreeMarkerLoginFormsProvider implements LoginFormsProvider {
             case LOGIN_IDP_LINK_EMAIL:
                 BrokeredIdentityContext brokerContext = (BrokeredIdentityContext) this.attributes.get(IDENTITY_PROVIDER_BROKER_CONTEXT);
                 String idpAlias = brokerContext.getIdpConfig().getAlias();
-                idpAlias = idpAlias.substring(0, 1).toUpperCase() + idpAlias.substring(1);
+                idpAlias = ObjectUtil.capitalize(idpAlias);
 
                 attributes.put("brokerContext", brokerContext);
                 attributes.put("idpAlias", idpAlias);
@@ -470,7 +471,7 @@ public class FreeMarkerLoginFormsProvider implements LoginFormsProvider {
     public Response createIdpLinkEmailPage() {
         BrokeredIdentityContext brokerContext = (BrokeredIdentityContext) this.attributes.get(IDENTITY_PROVIDER_BROKER_CONTEXT);
         String idpAlias = brokerContext.getIdpConfig().getAlias();
-        idpAlias = idpAlias.substring(0, 1).toUpperCase() + idpAlias.substring(1);
+        idpAlias = ObjectUtil.capitalize(idpAlias);;
         setMessage(MessageType.WARNING, Messages.LINK_IDP, idpAlias);
 
         return createResponse(LoginFormsPages.LOGIN_IDP_LINK_EMAIL);

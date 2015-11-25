@@ -8,6 +8,7 @@ module.controller('GroupListCtrl', function($scope, $route, realm, groups, Group
     $scope.tree = [];
 
     $scope.edit = function(selected) {
+        if (selected.id == 'realm') return;
         $location.url("/realms/" + realm.realm + "/groups/" + selected.id);
     }
 
@@ -23,6 +24,7 @@ module.controller('GroupListCtrl', function($scope, $route, realm, groups, Group
     $scope.paste = function(selected) {
         if (selected == null) return;
         if ($scope.cutNode == null) return;
+        if (selected.id == $scope.cutNode.id) return;
         if (selected.id == 'realm') {
             Groups.save({realm: realm.realm}, {id:$scope.cutNode.id}, function() {
                 $route.reload();
@@ -95,7 +97,7 @@ module.controller('GroupCreateCtrl', function($scope, $route, realm, parentId, G
         console.log('save!!!');
         if (parentId == 'realm') {
             console.log('realm')
-            Groups.save({realm: realm.realm, groupId: parentId}, $scope.group, function(data, headers) {
+            Groups.save({realm: realm.realm}, $scope.group, function(data, headers) {
                 var l = headers().location;
 
 
@@ -319,3 +321,110 @@ module.controller('GroupRoleMappingCtrl', function($scope, $http, realm, group, 
 
 
 });
+
+module.controller('GroupMembersCtrl', function($scope, realm, group, GroupMembership) {
+    $scope.realm = realm;
+    $scope.page = 0;
+    $scope.group = group;
+
+    $scope.query = {
+        realm: realm.realm,
+        groupId: group.id,
+        max : 5,
+        first : 0
+    }
+
+
+    $scope.firstPage = function() {
+        $scope.query.first = 0;
+        $scope.searchQuery();
+    }
+
+    $scope.previousPage = function() {
+        $scope.query.first -= parseInt($scope.query.max);
+        if ($scope.query.first < 0) {
+            $scope.query.first = 0;
+        }
+        $scope.searchQuery();
+    }
+
+    $scope.nextPage = function() {
+        $scope.query.first += parseInt($scope.query.max);
+        $scope.searchQuery();
+    }
+
+    $scope.searchQuery = function() {
+        console.log("query.search: " + $scope.query.search);
+        $scope.searchLoaded = false;
+
+        $scope.users = GroupMembership.query($scope.query, function() {
+            console.log('search loaded');
+            $scope.searchLoaded = true;
+            $scope.lastSearch = $scope.query.search;
+        });
+    };
+
+    $scope.searchQuery();
+
+});
+
+module.controller('DefaultGroupsCtrl', function($scope, $route, realm, groups, DefaultGroups, Notifications, $location, Dialog) {
+    $scope.realm = realm;
+    $scope.groupList = groups;
+    $scope.selectedGroup = null;
+    $scope.tree = [];
+
+    DefaultGroups.query({realm: realm.realm}, function(data) {
+        $scope.defaultGroups = data;
+
+    });
+
+    $scope.addDefaultGroup = function() {
+        if (!$scope.tree.currentNode) {
+            Notifications.error('Please select a group to add');
+            return;
+        };
+
+        DefaultGroups.update({realm: realm.realm, groupId: $scope.tree.currentNode.id}, function() {
+            Notifications.success('Added default group');
+            $route.reload();
+        });
+
+    };
+
+    $scope.removeDefaultGroup = function() {
+        DefaultGroups.remove({realm: realm.realm, groupId: $scope.selectedGroup.id}, function() {
+            Notifications.success('Removed default group');
+            $route.reload();
+        });
+
+    };
+
+    var isLeaf = function(node) {
+        return node.id != "realm" && (!node.subGroups || node.subGroups.length == 0);
+    };
+
+    $scope.getGroupClass = function(node) {
+        if (node.id == "realm") {
+            return 'pficon pficon-users';
+        }
+        if (isLeaf(node)) {
+            return 'normal';
+        }
+        if (node.subGroups.length && node.collapsed) return 'collapsed';
+        if (node.subGroups.length && !node.collapsed) return 'expanded';
+        return 'collapsed';
+
+    }
+
+    $scope.getSelectedClass = function(node) {
+        if (node.selected) {
+            return 'selected';
+        } else if ($scope.cutNode && $scope.cutNode.id == node.id) {
+            return 'cut';
+        }
+        return undefined;
+    }
+
+});
+

@@ -327,6 +327,8 @@ module.controller('RealmLoginSettingsCtrl', function($scope, Current, Realm, rea
 });
 
 module.controller('RealmOtpPolicyCtrl', function($scope, Current, Realm, realm, serverInfo, $http, $location, Dialog, Notifications) {
+    $scope.optionsDigits = [ 6, 8 ];
+
     genericRealmUpdate($scope, Current, Realm, realm, serverInfo, $http, $location, Dialog, Notifications, "/realms/" + realm.realm + "/authentication/otp-policy");
 });
 
@@ -337,7 +339,7 @@ module.controller('RealmThemeCtrl', function($scope, Current, Realm, realm, serv
     $scope.supportedLocalesOptions = {
         'multiple' : true,
         'simple_tags' : true,
-        'tags' : ['en', 'de', 'pt-BR', 'it', 'es']
+        'tags' : ['en', 'de', 'pt-BR', 'it', 'es', 'ca']
     };
 
     $scope.$watch('realm.supportedLocales', function(oldVal, newVal) {
@@ -1193,7 +1195,7 @@ module.controller('RealmSMTPSettingsCtrl', function($scope, Current, Realm, real
             }
         }
 
-        obj['port'] = obj['port'].toString();
+        obj['port'] = obj['port'] && obj['port'].toString();
 
         return obj;
     }
@@ -1984,6 +1986,65 @@ module.controller('AuthenticationConfigCreateCtrl', function($scope, realm, flow
     };
 
 
+});
+
+module.controller('ClientInitialAccessCtrl', function($scope, realm, clientInitialAccess, ClientInitialAccess, Dialog, Notifications, $route) {
+    $scope.realm = realm;
+    $scope.clientInitialAccess = clientInitialAccess;
+
+    $scope.remove = function(id) {
+        Dialog.confirmDelete(id, 'initial access token', function() {
+            ClientInitialAccess.remove({ realm: realm.realm, id: id }, function() {
+                Notifications.success("The initial access token was deleted.");
+                $route.reload();
+            });
+        });
+    }
+});
+
+module.controller('ClientInitialAccessCreateCtrl', function($scope, realm, ClientInitialAccess, TimeUnit, Dialog, $location, $translate) {
+    $scope.expirationUnit = 'Days';
+    $scope.expiration = TimeUnit.toUnit(0, $scope.expirationUnit);
+    $scope.count = 1;
+    $scope.realm = realm;
+
+    $scope.$watch('expirationUnit', function(to, from) {
+        $scope.expiration = TimeUnit.convert($scope.expiration, from, to);
+    });
+
+    $scope.save = function() {
+        var expiration = TimeUnit.toSeconds($scope.expiration, $scope.expirationUnit);
+        ClientInitialAccess.save({
+            realm: realm.realm
+        }, { expiration: expiration, count: $scope.count}, function (data) {
+            console.debug(data);
+            $scope.id = data.id;
+            $scope.token = data.token;
+        });
+    };
+
+    $scope.cancel = function() {
+        $location.url('/realms/' + realm.realm + '/client-initial-access');
+    };
+
+    $scope.done = function() {
+        var btns = {
+            ok: {
+                label: $translate.instant('continue'),
+                cssClass: 'btn btn-primary'
+            },
+            cancel: {
+                label: $translate.instant('cancel'),
+                cssClass: 'btn btn-default'
+            }
+        }
+
+        var title = $translate.instant('initial-access-token.confirm.title');
+        var message = $translate.instant('initial-access-token.confirm.text');
+        Dialog.open(title, message, btns, function() {
+            $location.url('/realms/' + realm.realm + '/client-initial-access');
+        });
+    };
 });
 
 
