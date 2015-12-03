@@ -79,7 +79,7 @@ public class AdminAPITest {
             RealmManager manager = new RealmManager(session);
 
             RealmModel adminRealm = manager.getRealm(Config.getAdminRealm());
-            ClientModel adminConsole = adminRealm.getClientByClientId(Constants.ADMIN_CONSOLE_CLIENT_ID);
+            ClientModel adminConsole = adminRealm.getClientByClientId(Constants.ADMIN_CLI_CLIENT_ID);
             TokenManager tm = new TokenManager();
             UserModel admin = session.users().getUserByUsername("admin", adminRealm);
             ClientSessionModel clientSession = session.sessions().createClientSession(adminRealm, adminConsole);
@@ -255,6 +255,7 @@ public class AdminAPITest {
             Assert.assertEquals(rep.getAccessCodeLifespanUserAction(), storedRealm.getAccessCodeLifespanUserAction());
         if (rep.getNotBefore() != null) Assert.assertEquals(rep.getNotBefore(), storedRealm.getNotBefore());
         if (rep.getAccessTokenLifespan() != null) Assert.assertEquals(rep.getAccessTokenLifespan(), storedRealm.getAccessTokenLifespan());
+        if (rep.getAccessTokenLifespanForImplicitFlow() != null) Assert.assertEquals(rep.getAccessTokenLifespanForImplicitFlow(), storedRealm.getAccessTokenLifespanForImplicitFlow());
         if (rep.getSsoSessionIdleTimeout() != null) Assert.assertEquals(rep.getSsoSessionIdleTimeout(), storedRealm.getSsoSessionIdleTimeout());
         if (rep.getSsoSessionMaxLifespan() != null) Assert.assertEquals(rep.getSsoSessionMaxLifespan(), storedRealm.getSsoSessionMaxLifespan());
         if (rep.getRequiredCredentials() != null) {
