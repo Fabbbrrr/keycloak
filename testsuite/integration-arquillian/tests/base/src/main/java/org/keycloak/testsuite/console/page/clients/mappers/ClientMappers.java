@@ -1,4 +1,4 @@
-package org.keycloak.testsuite.console.page.clients;
+package org.keycloak.testsuite.console.page.clients.mappers;
 
 import org.keycloak.representations.idm.ProtocolMapperRepresentation;
 import org.keycloak.testsuite.console.page.fragment.DataTable;
@@ -8,6 +8,7 @@ import org.openqa.selenium.support.FindBy;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.keycloak.testsuite.console.page.clients.Client;
 
 /**
  *
@@ -32,23 +33,26 @@ public class ClientMappers extends Client {
 
     public class ClientMapperTable extends DataTable {
 
+        @FindBy(xpath = "//button[text() = 'Add selected']")
+        private WebElement addSelectedButton;
+        
         public List<ProtocolMapperRepresentation> searchMappings(String searchPattern) {
             search(searchPattern);
             return getMappingsFromRows();
         }
 
         public void createMapper() {
-            waitAjaxForBody();
+            waitForBody();
             clickHeaderLink(CREATE);
         }
 
         public void addBuiltin() {
-            waitAjaxForBody();
+            waitForBody();
             clickHeaderLink(ADD_BUILTIN);
         }
 
         public void clickMapper(String mapperName) {
-            waitAjaxForBody();
+            waitForBody();
             body().findElement(By.linkText(mapperName)).click();
         }
 
@@ -57,7 +61,7 @@ public class ClientMappers extends Client {
         }
 
         private void clickMapperActionButton(String mapperName, String buttonText) {
-            waitAjaxForBody();
+            waitForBody();
             clickRowActionButton(getRowByLinkText(mapperName), buttonText);
         }
 
@@ -80,6 +84,14 @@ public class ClientMappers extends Client {
         public void deleteMapper(ProtocolMapperRepresentation mapper) {
             clickMapperActionButton(mapper, DELETE);
         }
+        
+        public void checkBuiltinMapper(String mapperName) {
+            body().findElement(By.xpath("//td[text() = '" + mapperName + "']/..//input")).click();
+        }
+        
+        public void clickAddSelectedBuiltinMapper() {
+            addSelectedButton.click();
+        }
 
         public ProtocolMapperRepresentation getMappingFromRow(WebElement row) {
             if (!row.isDisplayed()) {return null;} // Is that necessary?
@@ -96,7 +108,7 @@ public class ClientMappers extends Client {
         }
 
         public List<ProtocolMapperRepresentation> getMappingsFromRows() {
-            List<ProtocolMapperRepresentation> mappings = new ArrayList<ProtocolMapperRepresentation>();
+            List<ProtocolMapperRepresentation> mappings = new ArrayList<>();
 
             for (WebElement row : rows()) {
                 ProtocolMapperRepresentation mapperRepresentation = getMappingFromRow(row);

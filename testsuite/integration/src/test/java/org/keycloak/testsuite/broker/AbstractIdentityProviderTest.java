@@ -51,6 +51,7 @@ import org.keycloak.testsuite.pages.LoginUpdateProfilePage;
 import org.keycloak.testsuite.pages.OAuthGrantPage;
 import org.keycloak.testsuite.pages.VerifyEmailPage;
 import org.keycloak.testsuite.rule.GreenMailRule;
+import org.keycloak.testsuite.rule.LoggingRule;
 import org.keycloak.testsuite.rule.WebResource;
 import org.keycloak.testsuite.rule.WebRule;
 import org.keycloak.util.JsonSerialization;
@@ -92,6 +93,9 @@ public abstract class AbstractIdentityProviderTest {
 
     @ClassRule
     public static BrokerKeyCloakRule brokerServerRule = new BrokerKeyCloakRule();
+
+    @Rule
+    public LoggingRule loggingRule = new LoggingRule(this);
 
     @Rule
     public WebRule webRule = new WebRule(this);
@@ -257,7 +261,7 @@ public abstract class AbstractIdentityProviderTest {
         return getRealm(this.session);
     }
 
-    protected RealmModel getRealm(KeycloakSession session) {
+    protected static RealmModel getRealm(KeycloakSession session) {
         return session.realms().getRealm("realm-with-broker");
     }
 
@@ -308,7 +312,7 @@ public abstract class AbstractIdentityProviderTest {
         });
     }
 
-    protected void setUpdateProfileFirstLogin(RealmModel realm, String updateProfileFirstLogin) {
+    protected static void setUpdateProfileFirstLogin(RealmModel realm, String updateProfileFirstLogin) {
         AuthenticatorConfigModel reviewProfileConfig = realm.getAuthenticatorConfigByAlias(DefaultAuthenticationFlows.IDP_REVIEW_PROFILE_CONFIG_ALIAS);
         reviewProfileConfig.getConfig().put(IdpReviewProfileAuthenticatorFactory.UPDATE_PROFILE_ON_FIRST_LOGIN, updateProfileFirstLogin);
         realm.updateAuthenticatorConfig(reviewProfileConfig);
