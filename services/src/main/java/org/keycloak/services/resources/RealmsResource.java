@@ -1,9 +1,21 @@
 package org.keycloak.services.resources;
 
+import java.util.List;
+
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
+import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.core.UriBuilder;
+import javax.ws.rs.core.UriInfo;
+
 import org.jboss.logging.Logger;
 import org.jboss.resteasy.spi.NotFoundException;
 import org.jboss.resteasy.spi.ResteasyProviderFactory;
-import org.keycloak.Config;
 import org.keycloak.common.ClientConnection;
 import org.keycloak.events.EventBuilder;
 import org.keycloak.models.ClientModel;
@@ -14,19 +26,15 @@ import org.keycloak.protocol.LoginProtocol;
 import org.keycloak.protocol.LoginProtocolFactory;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.OIDCLoginProtocolService;
+import org.keycloak.provider.ProviderFactory;
 import org.keycloak.services.clientregistration.ClientRegistrationService;
 import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.managers.BruteForceProtector;
 import org.keycloak.services.managers.RealmManager;
+import org.keycloak.services.resources.spi.RealmResourceProvider;
+import org.keycloak.services.resources.spi.RealmResourceProviderFactory;
 import org.keycloak.services.util.CacheControlUtil;
 import org.keycloak.wellknown.WellKnownProvider;
-
-import javax.ws.rs.GET;
-import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
-import javax.ws.rs.Produces;
-import javax.ws.rs.QueryParam;
-import javax.ws.rs.core.*;
 
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
@@ -191,4 +199,24 @@ public class RealmsResource {
         return Response.ok(wellKnown.getConfig()).cacheControl(CacheControlUtil.getDefaultCacheControl()).build();
     }
 
+    @Path("{realm}/{unknow_path}")
+    public Object resolveUnknowPath(@PathParam("realm") String realmName, @PathParam("unknow_path") String spi) {
+        List<ProviderFactory> factory = this.session.getKeycloakSessionFactory().getProviderFactories(RealmResourceProvider.class);
+
+        if (factory != null) {
+            RealmModel realm = init(realmName);
+
+            for (ProviderFactory providerFactory : factory) {
+                RealmResourceProviderFactory realmFactory = (RealmResourceProviderFactory) providerFactory;
+                RealmResourceProvider resourceProvider = realmFactory.create(realm, this.session);
+                Object resource = resourceProvider.getResource(spi);
+
+                if (resource != null) {
+                    return resource;
+                }
+            }
+        }
+
+        return null;
+    }
 }
