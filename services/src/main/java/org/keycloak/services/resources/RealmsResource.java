@@ -199,8 +199,8 @@ public class RealmsResource {
         return Response.ok(wellKnown.getConfig()).cacheControl(CacheControlUtil.getDefaultCacheControl()).build();
     }
 
-    @Path("{realm}/{unknow_path}")
-    public Object resolveUnknowPath(@PathParam("realm") String realmName, @PathParam("unknow_path") String spi) {
+    @Path("{realm}/{unknown_path}")
+    public Object resolveUnknowPath(@PathParam("realm") String realmName, @PathParam("unknown_path") String spi) {
         List<ProviderFactory> factory = this.session.getKeycloakSessionFactory().getProviderFactories(RealmResourceProvider.class);
 
         if (factory != null) {
