@@ -26,7 +26,7 @@ public class DefaultEmailSenderProvider implements EmailSenderProvider {
     @Override
     public void send(RealmModel realm, UserModel user, String subject, String textBody, String htmlBody) throws EmailException {
         try {
-            String address = user.getEmail();
+            String address = user.getFirstAttribute("email");
             Map<String, String> config = realm.getSmtpConfig();
 
             Properties props = new Properties();
