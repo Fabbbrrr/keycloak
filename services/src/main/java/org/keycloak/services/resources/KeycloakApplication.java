@@ -22,6 +22,7 @@ import org.keycloak.services.managers.UsersSyncManager;
 import org.keycloak.services.resources.admin.AdminRoot;
 import org.keycloak.services.scheduled.ClearExpiredEvents;
 import org.keycloak.services.scheduled.ClearExpiredUserSessions;
+import org.keycloak.services.scheduled.RefreshExpiredTokens;
 import org.keycloak.services.scheduled.ScheduledTaskRunner;
 import org.keycloak.services.util.JsonConfigProvider;
 import org.keycloak.services.util.ObjectMapperResolver;
@@ -168,6 +169,11 @@ public class KeycloakApplication extends Application {
         TimerProvider timer = sessionFactory.create().getProvider(TimerProvider.class);
         timer.schedule(new ScheduledTaskRunner(sessionFactory, new ClearExpiredEvents()), interval, "ClearExpiredEvents");
         timer.schedule(new ScheduledTaskRunner(sessionFactory, new ClearExpiredUserSessions()), interval, "ClearExpiredUserSessions");
+
+        // Launch token refresh job
+        long tokenInterval = Config.scope("cache").scope("tokens").getLong("refreshInterval") * 1000;
+        timer.schedule(new ScheduledTaskRunner(sessionFactory, new RefreshExpiredTokens()), tokenInterval, "RefreshExpiredTokens");
+
         new UsersSyncManager().bootstrapPeriodic(sessionFactory, timer);
     }
 

@@ -297,6 +297,8 @@ public class InfinispanUserSessionProvider implements UserSessionProvider {
 
         for (String id : map.keySet()) {
             removeUserSession(realm, id);
+            // Also remove cached token from this session
+            session.tokens().removeToken(id);
         }
 
         map = new MapReduceTask(sessionCache)
@@ -306,6 +308,8 @@ public class InfinispanUserSessionProvider implements UserSessionProvider {
 
         for (String id : map.keySet()) {
             tx.remove(sessionCache, id);
+            // Also remove cached token from this session
+            session.tokens().removeToken(id);
         }
 
         // Remove expired offline user sessions
@@ -345,6 +349,8 @@ public class InfinispanUserSessionProvider implements UserSessionProvider {
 
         for (String id : map.keySet()) {
             tx.remove(sessionCache, id);
+            // Also remove cached token from this session
+            session.tokens().removeToken(id);
         }
     }
 

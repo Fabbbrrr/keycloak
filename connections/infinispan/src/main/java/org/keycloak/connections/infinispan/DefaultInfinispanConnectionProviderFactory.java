@@ -67,6 +67,15 @@ public class DefaultInfinispanConnectionProviderFactory implements InfinispanCon
                         initEmbedded();
                     }
 
+                    // Enable indexing on tokens cache
+                    if (cacheManager.getCacheConfiguration(InfinispanConnectionProvider.TOKEN_CACHE_NAME) != null) {
+                        Configuration tokensCacheConfig = cacheManager.getCacheConfiguration(InfinispanConnectionProvider.TOKEN_CACHE_NAME);
+                        ConfigurationBuilder tokensConfBuilder = new ConfigurationBuilder().read(tokensCacheConfig);
+                        tokensConfBuilder.indexing().enable().indexLocalOnly(true);
+                        Configuration tokensConfig = tokensConfBuilder.build();
+                        cacheManager.defineConfiguration(InfinispanConnectionProvider.TOKEN_CACHE_NAME, tokensConfig);
+                    }
+
                     // Backwards compatibility
                     if (cacheManager.getCacheConfiguration(InfinispanConnectionProvider.OFFLINE_SESSION_CACHE_NAME) == null) {
                         logger.debugf("No configuration provided for '%s' cache. Using '%s' configuration as template",

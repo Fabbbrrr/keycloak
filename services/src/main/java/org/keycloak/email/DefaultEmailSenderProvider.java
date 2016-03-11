@@ -26,7 +26,13 @@ public class DefaultEmailSenderProvider implements EmailSenderProvider {
     @Override
     public void send(RealmModel realm, UserModel user, String subject, String textBody, String htmlBody) throws EmailException {
         try {
-            String address = user.getFirstAttribute("email");
+            // Changed from the standard email property to an user attribute due to the support of duplicated emails across Sportsbet
+            String address;
+            if (user.getEmail() != null) {
+                address = user.getEmail();
+            } else {
+                address = user.getFirstAttribute("email");
+            }
             Map<String, String> config = realm.getSmtpConfig();
 
             Properties props = new Properties();

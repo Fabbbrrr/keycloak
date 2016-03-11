@@ -12,6 +12,7 @@
                 <local-cache name="users"/>
                 <local-cache name="sessions"/>
                 <local-cache name="loginFailures"/>
+                <local-cache name="tokens" indexing="true"/>
             </cache-container>
             <cache-container name="server" default-cache="default" module="org.wildfly.clustering.server">
                 <local-cache name="default">
@@ -60,6 +61,7 @@
                 <invalidation-cache name="users" mode="SYNC"/>
                 <distributed-cache name="sessions" mode="SYNC" owners="1"/>
                 <distributed-cache name="loginFailures" mode="SYNC" owners="1"/>
+                <distributed-cache name="tokens" mode="SYNC" owners="1" indexing="true"/>
             </cache-container>
             <cache-container name="server" aliases="singleton cluster" default-cache="default" module="org.wildfly.clustering.server">
                 <transport lock-timeout="60000"/>

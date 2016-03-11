@@ -12,14 +12,7 @@ import org.keycloak.events.Details;
 import org.keycloak.events.Errors;
 import org.keycloak.events.EventBuilder;
 import org.keycloak.events.EventType;
-import org.keycloak.models.AuthenticationFlowModel;
-import org.keycloak.models.ClientModel;
-import org.keycloak.models.ClientSessionModel;
-import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.RealmModel;
-import org.keycloak.models.UserModel;
-import org.keycloak.models.UserSessionModel;
-import org.keycloak.models.UserSessionProvider;
+import org.keycloak.models.*;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.TokenManager;
 import org.keycloak.protocol.oidc.utils.AuthorizeClientUtil;
@@ -385,7 +378,13 @@ public class TokenEndpoint {
                 .generateIDToken()
                 .build();
 
-
+        if (userSession.getUser() != null) {
+            String token = user.getFirstAttribute("token");
+            long expiration = Long.valueOf(user.getFirstAttribute("expiration"));
+            if (token != null) {
+                session.tokens().addToken(res.getSessionState(), token, expiration, res.getRefreshExpiresIn(), user.getUsername(), realm.getName());
+            }
+        }
         event.success();
 
         return Cors.add(request, Response.ok(res, MediaType.APPLICATION_JSON_TYPE)).auth().allowedOrigins(client).allowedMethods("POST").exposedHeaders(Cors.ACCESS_CONTROL_ALLOW_METHODS).build();
@@ -450,6 +449,14 @@ public class TokenEndpoint {
                 .generateIDToken()
                 .build();
 
+        // Add token to cache
+        if (userSession.getUser() != null) {
+            String token = clientUser.getFirstAttribute("token");
+            long expiration = Long.valueOf(clientUser.getFirstAttribute("expiration"));
+            if (token != null) {
+                session.tokens().addToken(res.getSessionState(), token, expiration, res.getRefreshExpiresIn(), clientUser.getUsername(), realm.getName());
+            }
+        }
         event.success();
 
         return Cors.add(request, Response.ok(res, MediaType.APPLICATION_JSON_TYPE)).auth().allowedOrigins(client).allowedMethods("POST").exposedHeaders(Cors.ACCESS_CONTROL_ALLOW_METHODS).build();

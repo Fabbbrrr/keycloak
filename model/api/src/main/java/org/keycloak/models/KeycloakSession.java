@@ -1,6 +1,5 @@
 package org.keycloak.models;
 
-import org.keycloak.migration.MigrationModel;
 import org.keycloak.provider.Provider;
 
 import java.util.Set;
@@ -60,4 +59,9 @@ public interface KeycloakSession {
      *  Keycloak user storage.  Non-federated, but possibly cache (if it is on) view of users.
      */
     UserProvider userStorage();
+
+    /**
+     *  Keycloak token storage.  Cache only view of user tokens.
+     */
+    TokenCacheProvider tokens();
 }

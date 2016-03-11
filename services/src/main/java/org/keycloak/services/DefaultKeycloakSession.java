@@ -1,22 +1,12 @@
 package org.keycloak.services;
 
 import org.jboss.logging.Logger;
-import org.jboss.resteasy.spi.HttpRequest;
-import org.jboss.resteasy.spi.ResteasyProviderFactory;
-import org.keycloak.models.KeycloakContext;
-import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.KeycloakSessionFactory;
-import org.keycloak.models.KeycloakTransactionManager;
-import org.keycloak.models.RealmProvider;
-import org.keycloak.models.UserFederationManager;
-import org.keycloak.models.UserProvider;
-import org.keycloak.models.UserSessionProvider;
+import org.keycloak.Config;
+import org.keycloak.models.*;
 import org.keycloak.models.cache.CacheRealmProvider;
 import org.keycloak.models.cache.CacheUserProvider;
 import org.keycloak.provider.Provider;
 import org.keycloak.provider.ProviderFactory;
-
-import javax.ws.rs.core.UriInfo;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -36,6 +26,7 @@ public class DefaultKeycloakSession implements KeycloakSession {
     private final DefaultKeycloakTransactionManager transactionManager;
     private RealmProvider model;
     private UserProvider userModel;
+    private TokenCacheProvider tokenCacheProvider;
     private UserSessionProvider sessionProvider;
     private UserFederationManager federationManager;
     private KeycloakContext context;
@@ -69,6 +60,19 @@ public class DefaultKeycloakSession implements KeycloakSession {
             return getProvider(UserProvider.class);
         }
     }
+    private TokenCacheProvider getTokenCacheProvider() {
+        Class cls = null;
+        try {
+            String className = Config.scope("cache").scope("tokens").get("tokenProviderClass");
+            cls = Class.forName(className);
+        } catch (ClassNotFoundException e) {
+            logger.error("TokenCacheProvider class not found", e);
+        }
+        if (factory.getDefaultProvider(cls) != null) {
+            return (TokenCacheProvider) getProvider(cls);
+        }
+        return null;
+    }
 
     @Override
     public void enlistForClose(Provider provider) {
@@ -92,6 +96,14 @@ public class DefaultKeycloakSession implements KeycloakSession {
         }
         return userModel;
 
+    }
+
+    @Override
+    public TokenCacheProvider tokens() {
+        if (tokenCacheProvider == null) {
+            tokenCacheProvider = getTokenCacheProvider();
+        }
+        return tokenCacheProvider;
     }
 
     public <T extends Provider> T getProvider(Class<T> clazz) {
