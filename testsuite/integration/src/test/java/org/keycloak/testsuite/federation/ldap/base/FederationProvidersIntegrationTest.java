@@ -1,3 +1,20 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.keycloak.testsuite.federation.ldap.base;
 
 import org.junit.Assert;
@@ -12,6 +29,7 @@ import org.keycloak.OAuth2Constants;
 import org.keycloak.federation.ldap.LDAPConfig;
 import org.keycloak.federation.ldap.LDAPFederationProvider;
 import org.keycloak.federation.ldap.LDAPFederationProviderFactory;
+import org.keycloak.federation.ldap.LDAPUtils;
 import org.keycloak.federation.ldap.idm.model.LDAPObject;
 import org.keycloak.federation.ldap.mappers.FullNameLDAPFederationMapper;
 import org.keycloak.federation.ldap.mappers.FullNameLDAPFederationMapperFactory;
@@ -388,6 +406,9 @@ public class FederationProvidersIntegrationTest {
             if (!skip) {
                 LDAPObject johnComma = FederationTestUtils.addLDAPUser(ldapFedProvider, appRealm, "john,comma", "John", "Comma", "johncomma@email.org", null, "12387");
                 FederationTestUtils.updateLDAPPassword(ldapFedProvider, johnComma, "Password1");
+
+                LDAPObject johnPlus = FederationTestUtils.addLDAPUser(ldapFedProvider, appRealm, "john+plus,comma", "John", "Plus", "johnplus@email.org", null, "12387");
+                FederationTestUtils.updateLDAPPassword(ldapFedProvider, johnPlus, "Password1");
             }
         } finally {
             keycloakRule.stopSession(session, false);
@@ -396,6 +417,7 @@ public class FederationProvidersIntegrationTest {
         if (!skip) {
             // Try to import the user with comma in username into Keycloak
             loginSuccessAndLogout("john,comma", "Password1");
+            loginSuccessAndLogout("john+plus,comma", "Password1");
         }
     }
 
@@ -478,6 +500,8 @@ public class FederationProvidersIntegrationTest {
         }
     }
 
+
+    // TODO: Rather separate test for fullNameMapper to better test all the possibilities
     @Test
     public void testFullNameMapper() {
         KeycloakSession session = keycloakRule.startSession();
@@ -500,7 +524,7 @@ public class FederationProvidersIntegrationTest {
 
             UserFederationMapperModel fullNameMapperModel = KeycloakModelUtils.createUserFederationMapperModel("full name", ldapModel.getId(), FullNameLDAPFederationMapperFactory.PROVIDER_ID,
                     FullNameLDAPFederationMapper.LDAP_FULL_NAME_ATTRIBUTE, ldapFirstNameAttributeName,
-                    UserAttributeLDAPFederationMapper.READ_ONLY, "false");
+                    FullNameLDAPFederationMapper.READ_ONLY, "false");
             appRealm.addUserFederationMapper(fullNameMapperModel);
         } finally {
             keycloakRule.stopSession(session, true);
@@ -512,6 +536,36 @@ public class FederationProvidersIntegrationTest {
 
             // Assert user is successfully imported in Keycloak DB now with correct firstName and lastName
             FederationTestUtils.assertUserImported(session.users(), appRealm, "fullname", "James", "Dee", "fullname@email.org", "4578");
+
+            // change mapper to writeOnly
+            UserFederationMapperModel fullNameMapperModel = appRealm.getUserFederationMapperByName(ldapModel.getId(), "full name");
+            fullNameMapperModel.getConfig().put(FullNameLDAPFederationMapper.WRITE_ONLY, "true");
+            appRealm.updateUserFederationMapper(fullNameMapperModel);
+        } finally {
+            keycloakRule.stopSession(session, true);
+        }
+
+
+        // Assert changing user in Keycloak will change him in LDAP too...
+        session = keycloakRule.startSession();
+        try {
+            RealmModel appRealm = new RealmManager(session).getRealmByName("test");
+
+            UserModel fullnameUser = session.users().getUserByUsername("fullname", appRealm);
+            fullnameUser.setFirstName("James2");
+            fullnameUser.setLastName("Dee2");
+        } finally {
+            keycloakRule.stopSession(session, true);
+        }
+
+
+        // Assert changed user available in Keycloak
+        session = keycloakRule.startSession();
+        try {
+            RealmModel appRealm = new RealmManager(session).getRealmByName("test");
+
+            // Assert user is successfully imported in Keycloak DB now with correct firstName and lastName
+            FederationTestUtils.assertUserImported(session.users(), appRealm, "fullname", "James2", "Dee2", "fullname@email.org", "4578");
 
             // Remove "fullnameUser" to assert he is removed from LDAP. Revert mappers to previous state
             UserModel fullnameUser = session.users().getUserByUsername("fullname", appRealm);
@@ -639,7 +693,7 @@ public class FederationProvidersIntegrationTest {
 
             }
 
-            Assert.assertFalse(session.users().removeUser(appRealm, user));
+            Assert.assertTrue(session.users().removeUser(appRealm, user));
         } finally {
             keycloakRule.stopSession(session, false);
         }
@@ -774,8 +828,12 @@ public class FederationProvidersIntegrationTest {
             LDAPObject ldapUser = ldapProvider.loadLDAPUserByUsername(appRealm, "johnkeycloak");
             ldapProvider.getLdapIdentityStore().validatePassword(ldapUser, "Password1");
 
-            // ATM it's not permitted to delete user in unsynced mode. Should be user deleted just locally instead?
-            Assert.assertFalse(session.users().removeUser(appRealm, user));
+            // User is deleted just locally
+            Assert.assertTrue(session.users().removeUser(appRealm, user));
+
+            // Assert user not available locally, but will be reimported from LDAP once searched
+            Assert.assertNull(session.userStorage().getUserByUsername("johnkeycloak", appRealm));
+            Assert.assertNotNull(session.users().getUserByUsername("johnkeycloak", appRealm));
         } finally {
             keycloakRule.stopSession(session, false);
         }

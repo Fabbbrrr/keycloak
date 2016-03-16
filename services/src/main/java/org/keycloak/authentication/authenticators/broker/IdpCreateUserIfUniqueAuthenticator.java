@@ -1,3 +1,20 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.keycloak.authentication.authenticators.broker;
 
 import java.util.List;
@@ -5,7 +22,6 @@ import java.util.Map;
 
 import javax.ws.rs.core.Response;
 
-import org.jboss.logging.Logger;
 import org.keycloak.authentication.AuthenticationFlowContext;
 import org.keycloak.authentication.authenticators.broker.util.ExistingUserInfo;
 import org.keycloak.authentication.authenticators.broker.util.SerializedBrokeredIdentityContext;
@@ -16,6 +32,7 @@ import org.keycloak.models.AuthenticatorConfigModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
+import org.keycloak.services.ServicesLogger;
 import org.keycloak.services.messages.Messages;
 
 /**
@@ -23,7 +40,7 @@ import org.keycloak.services.messages.Messages;
  */
 public class IdpCreateUserIfUniqueAuthenticator extends AbstractIdpAuthenticator {
 
-    protected static Logger logger = Logger.getLogger(IdpCreateUserIfUniqueAuthenticator.class);
+    protected static ServicesLogger logger = ServicesLogger.ROOT_LOGGER;
 
 
     @Override
@@ -43,7 +60,7 @@ public class IdpCreateUserIfUniqueAuthenticator extends AbstractIdpAuthenticator
 
         String username = getUsername(context, serializedCtx, brokerContext);
         if (username == null) {
-            logger.warnf("%s is null. Reset flow and enforce showing reviewProfile page", realm.isRegistrationEmailAsUsername() ? "Email" : "Username");
+            logger.resetFlow(realm.isRegistrationEmailAsUsername() ? "Email" : "Username");
             context.getClientSession().setNote(ENFORCE_UPDATE_PROFILE, "true");
             context.resetFlow();
             return;
@@ -71,7 +88,7 @@ public class IdpCreateUserIfUniqueAuthenticator extends AbstractIdpAuthenticator
                 federatedUser.addRequiredAction(UserModel.RequiredAction.UPDATE_PASSWORD);
             }
 
-            // TODO: Event
+            userRegisteredSuccess(context, federatedUser, serializedCtx, brokerContext);
 
             context.setUser(federatedUser);
             context.getClientSession().setNote(BROKER_REGISTERED_NEW_USER, "true");
@@ -120,6 +137,12 @@ public class IdpCreateUserIfUniqueAuthenticator extends AbstractIdpAuthenticator
     protected String getUsername(AuthenticationFlowContext context, SerializedBrokeredIdentityContext serializedCtx, BrokeredIdentityContext brokerContext) {
         RealmModel realm = context.getRealm();
         return realm.isRegistrationEmailAsUsername() ? brokerContext.getEmail() : brokerContext.getModelUsername();
+    }
+
+
+    // Empty method by default. This exists, so subclass can override and add callback after new user is registered through social
+    protected void userRegisteredSuccess(AuthenticationFlowContext context, UserModel registeredUser, SerializedBrokeredIdentityContext serializedCtx, BrokeredIdentityContext brokerContext) {
+
     }
 
 

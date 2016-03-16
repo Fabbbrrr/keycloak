@@ -1,3 +1,20 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.keycloak.testsuite.broker;
 
 import java.util.Collections;
@@ -10,16 +27,13 @@ import javax.mail.internet.MimeMessage;
 
 import org.junit.Assert;
 import org.junit.Test;
-import org.keycloak.authentication.authenticators.broker.IdpCreateUserIfUniqueAuthenticator;
 import org.keycloak.authentication.authenticators.broker.IdpCreateUserIfUniqueAuthenticatorFactory;
 import org.keycloak.authentication.authenticators.broker.IdpEmailVerificationAuthenticatorFactory;
-import org.keycloak.authentication.authenticators.broker.IdpReviewProfileAuthenticatorFactory;
 import org.keycloak.common.util.ObjectUtil;
 import org.keycloak.models.AuthenticationExecutionModel;
 import org.keycloak.models.AuthenticationFlowModel;
 import org.keycloak.models.AuthenticatorConfigModel;
 import org.keycloak.models.FederatedIdentityModel;
-import org.keycloak.models.IdentityProviderModel;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.utils.DefaultAuthenticationFlows;
@@ -27,7 +41,6 @@ import org.keycloak.representations.idm.IdentityProviderRepresentation;
 import org.keycloak.services.managers.RealmManager;
 import org.keycloak.testsuite.pages.IdpConfirmLinkPage;
 import org.keycloak.testsuite.pages.IdpLinkEmailPage;
-import org.keycloak.testsuite.pages.LoginPasswordResetPage;
 import org.keycloak.testsuite.pages.LoginPasswordUpdatePage;
 import org.keycloak.testsuite.pages.LoginUpdateProfileEditUsernameAllowedPage;
 import org.keycloak.testsuite.rule.KeycloakRule;
@@ -308,7 +321,7 @@ public abstract class AbstractFirstBrokerLoginTest extends AbstractIdentityProvi
         Assert.assertEquals("pedroigor", this.loginPage.getUsername());
         Assert.assertFalse(this.loginPage.isUsernameInputEnabled());
 
-        Assert.assertEquals("Authenticate as pedroigor to link your account with " + getProviderId(), this.loginPage.getSuccessMessage());
+        Assert.assertEquals("Authenticate as pedroigor to link your account with " + getProviderId(), this.loginPage.getInfoMessage());
 
         try {
             this.loginPage.findSocialButton(getProviderId());

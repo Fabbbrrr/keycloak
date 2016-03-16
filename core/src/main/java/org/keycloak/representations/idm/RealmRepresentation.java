@@ -1,4 +1,23 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.keycloak.representations.idm;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.util.*;
 
@@ -32,7 +51,9 @@ public class RealmRepresentation {
     protected Boolean resetPasswordAllowed;
     protected Boolean editUsernameAllowed;
 
+    @Deprecated
     protected Boolean userCacheEnabled;
+    @Deprecated
     protected Boolean realmCacheEnabled;
 
     //--- brute force settings
@@ -88,8 +109,6 @@ public class RealmRepresentation {
     private List<IdentityProviderRepresentation> identityProviders;
     private List<IdentityProviderMapperRepresentation> identityProviderMappers;
     private List<ProtocolMapperRepresentation> protocolMappers;
-    @Deprecated
-    private Boolean identityFederationEnabled;
     protected Boolean internationalizationEnabled;
     protected Set<String> supportedLocales;
     protected String defaultLocale;
@@ -367,22 +386,6 @@ public class RealmRepresentation {
         this.rememberMe = rememberMe;
     }
 
-    public Boolean isRealmCacheEnabled() {
-        return realmCacheEnabled;
-    }
-
-    public void setRealmCacheEnabled(Boolean realmCacheEnabled) {
-        this.realmCacheEnabled = realmCacheEnabled;
-    }
-
-    public Boolean isUserCacheEnabled() {
-        return userCacheEnabled;
-    }
-
-    public void setUserCacheEnabled(Boolean userCacheEnabled) {
-        this.userCacheEnabled = userCacheEnabled;
-    }
-
     public Boolean isVerifyEmail() {
         return verifyEmail;
     }
@@ -642,11 +645,6 @@ public class RealmRepresentation {
         identityProviders.add(identityProviderRepresentation);
     }
 
-    @Deprecated
-    public boolean isIdentityFederationEnabled() {
-        return identityProviders != null && !identityProviders.isEmpty();
-    }
-
     public List<ProtocolMapperRepresentation> getProtocolMappers() {
         return protocolMappers;
     }
@@ -831,4 +829,10 @@ public class RealmRepresentation {
     public void setClientTemplates(List<ClientTemplateRepresentation> clientTemplates) {
         this.clientTemplates = clientTemplates;
     }
+
+    @JsonIgnore
+    public boolean isIdentityFederationEnabled() {
+        return identityProviders != null && !identityProviders.isEmpty();
+    }
+
 }

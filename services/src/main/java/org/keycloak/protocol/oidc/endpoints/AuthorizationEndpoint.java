@@ -1,17 +1,33 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.keycloak.protocol.oidc.endpoints;
 
 import javax.ws.rs.GET;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
 
-import org.jboss.logging.Logger;
 import org.keycloak.authentication.AuthenticationProcessor;
 import org.keycloak.constants.AdapterConstants;
 import org.keycloak.events.Details;
 import org.keycloak.events.Errors;
 import org.keycloak.events.EventBuilder;
 import org.keycloak.events.EventType;
-import org.keycloak.login.LoginFormsProvider;
+import org.keycloak.forms.login.LoginFormsProvider;
 import org.keycloak.models.AuthenticationFlowModel;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.ClientSessionModel;
@@ -24,18 +40,19 @@ import org.keycloak.protocol.oidc.utils.OIDCResponseMode;
 import org.keycloak.protocol.oidc.utils.OIDCResponseType;
 import org.keycloak.protocol.oidc.utils.RedirectUtils;
 import org.keycloak.services.ErrorPageException;
+import org.keycloak.services.ServicesLogger;
 import org.keycloak.services.Urls;
-import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.managers.ClientSessionCode;
 import org.keycloak.services.messages.Messages;
 import org.keycloak.services.resources.LoginActionsService;
+import org.keycloak.services.util.CacheControlUtil;
 
 /**
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
  */
 public class AuthorizationEndpoint extends AuthorizationEndpointBase {
 
-    private static final Logger logger = Logger.getLogger(AuthorizationEndpoint.class);
+    private static final ServicesLogger logger = ServicesLogger.ROOT_LOGGER;
 
     public static final String CODE_AUTH_TYPE = "code";
 
@@ -61,10 +78,8 @@ public class AuthorizationEndpoint extends AuthorizationEndpointBase {
     private String nonce;
     private String idpHint;
 
-    private String legacyResponseType;
-
-    public AuthorizationEndpoint(AuthenticationManager authManager, RealmModel realm, EventBuilder event) {
-        super(realm, event, authManager);
+    public AuthorizationEndpoint(RealmModel realm, EventBuilder event) {
+        super(realm, event);
         event.event(EventType.LOGIN);
     }
 
@@ -90,7 +105,8 @@ public class AuthorizationEndpoint extends AuthorizationEndpointBase {
         checkRedirectUri();
 
         createClientSession();
-
+        // So back button doesn't work
+        CacheControlUtil.noBackButtonCacheControlHeader();
         switch (action) {
             case REGISTER:
                 return buildRegister();
@@ -101,15 +117,6 @@ public class AuthorizationEndpoint extends AuthorizationEndpointBase {
         }
 
         throw new RuntimeException("Unknown action " + action);
-    }
-
-    /**
-     * @deprecated
-     */
-    public AuthorizationEndpoint legacy(String legacyResponseType) {
-        logger.warnv("Invoking deprecated endpoint {0}", uriInfo.getRequestUri());
-        this.legacyResponseType = legacyResponseType;
-        return this;
     }
 
     public AuthorizationEndpoint register() {
@@ -182,12 +189,8 @@ public class AuthorizationEndpoint extends AuthorizationEndpointBase {
 
     private void checkResponseType() {
         if (responseType == null) {
-            if (legacyResponseType != null) {
-                responseType = legacyResponseType;
-            } else {
-                event.error(Errors.INVALID_REQUEST);
-                throw new ErrorPageException(session, Messages.MISSING_PARAMETER, OIDCLoginProtocol.RESPONSE_TYPE_PARAM);
-            }
+            event.error(Errors.INVALID_REQUEST);
+            throw new ErrorPageException(session, Messages.MISSING_PARAMETER, OIDCLoginProtocol.RESPONSE_TYPE_PARAM);
         }
 
         event.detail(Details.RESPONSE_TYPE, responseType);
@@ -198,7 +201,7 @@ public class AuthorizationEndpoint extends AuthorizationEndpointBase {
                 action = Action.CODE;
             }
         } catch (IllegalArgumentException iae) {
-            logger.error(iae.getMessage());
+            logger.error(iae);
             event.error(Errors.INVALID_REQUEST);
             throw new ErrorPageException(session, Messages.INVALID_PARAMETER, OIDCLoginProtocol.RESPONSE_TYPE_PARAM);
         }
@@ -209,7 +212,7 @@ public class AuthorizationEndpoint extends AuthorizationEndpointBase {
 
             // Disallowed by OIDC specs
             if (parsedResponseType.isImplicitOrHybridFlow() && parsedResponseMode == OIDCResponseMode.QUERY) {
-                logger.error("Response_mode 'query' not allowed for implicit or hybrid flow");
+                logger.responseModeQueryNotAllowed();
                 event.error(Errors.INVALID_REQUEST);
                 throw new ErrorPageException(session, Messages.INVALID_PARAMETER, OIDCLoginProtocol.RESPONSE_MODE_PARAM);
             }
@@ -235,7 +238,6 @@ public class AuthorizationEndpoint extends AuthorizationEndpointBase {
         clientSession.setAuthMethod(OIDCLoginProtocol.LOGIN_PROTOCOL);
         clientSession.setRedirectUri(redirectUri);
         clientSession.setAction(ClientSessionModel.Action.AUTHENTICATE.name());
-        clientSession.setNote(ClientSessionCode.ACTION_KEY, KeycloakModelUtils.generateCodeSecret());
         clientSession.setNote(OIDCLoginProtocol.RESPONSE_TYPE_PARAM, responseType);
         clientSession.setNote(OIDCLoginProtocol.REDIRECT_URI_PARAM, redirectUriParam);
         clientSession.setNote(OIDCLoginProtocol.ISSUER, Urls.realmIssuer(uriInfo.getBaseUri(), realm.getName()));
@@ -265,7 +267,7 @@ public class AuthorizationEndpoint extends AuthorizationEndpointBase {
         this.event.event(EventType.LOGIN);
         clientSession.setNote(Details.AUTH_TYPE, CODE_AUTH_TYPE);
 
-        return handleBrowserAuthenticationRequest(clientSession, new OIDCLoginProtocol(session, realm, uriInfo, headers, event), prompt != null && prompt.equals("none"));
+        return handleBrowserAuthenticationRequest(clientSession, new OIDCLoginProtocol(session, realm, uriInfo, headers, event), prompt != null && prompt.equals("none"), false);
     }
 
     private Response buildRegister() {

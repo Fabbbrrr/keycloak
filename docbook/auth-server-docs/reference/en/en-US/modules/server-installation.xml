@@ -1,10 +1,28 @@
+<!--
+  ~ Copyright 2016 Red Hat, Inc. and/or its affiliates
+  ~ and other contributors as indicated by the @author tags.
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~ http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+
 <chapter id="server-installation">
     <title>Installation and Configuration of Keycloak Server</title>
 
     <section>
         <title>Installation</title>
         <para>
-            Keycloak Server has three downloadable distributions.
+            Keycloak Server has three downloadable distributions. To run the Keycloak server you need to have Java 8 already
+            installed.
         </para>
         <para>
             <itemizedlist>
@@ -33,53 +51,27 @@
                 or:
                 <programlisting>keycloak-&project.version;/bin/standalone.bat</programlisting>
             </para>
-            <para>
-                Once the server is started log into the admin console at
-                <ulink url="http://localhost:8080/auth/admin/index.html">http://localhost:8080/auth/admin/index.html</ulink>
-                (username: <emphasis>admin</emphasis> and password: <emphasis>admin</emphasis>). Keycloak will then prompt you to
-                enter in a new password.
-            </para>
         </section>
 
 
         <section id="overlay_install">
-            <title>Install on existing WildFly &wildfly.version;</title>
+            <title>Install on existing WildFly &wildfly.version; or JBoss EAP &eap.version;</title>
             <para>
-                Keycloak can be installed into an existing WildFly &wildfly.version; server. To do this download
-                <literal>keycloak-overlay-&project.version;.zip</literal> or <literal>keycloak-overlay-&project.version;.tar.gz</literal>.
-                Once downloaded extract into the root directory of your WildFly installation. To start WildFly with Keycloak
-                run:
-                <programlisting>&lt;WILDFLY_HOME&gt;/bin/standalone.sh --server-config=standalone-keycloak.xml</programlisting>
-                or:
-                <programlisting>&lt;WILDFLY_HOME&gt;/bin/standalone.bat --server-config=standalone-keycloak.xml</programlisting>
+                Keycloak can be installed into an existing installations of WildFly &wildfly.version; or JBoss EAP &eap.version;.
+                To do this download <literal>keycloak-overlay-&project.version;.zip</literal> or <literal>keycloak-overlay-&project.version;.tar.gz</literal>.
+                Once downloaded extract into the root directory of your installation.
             </para>
             <para>
-                Once the server is started log into the admin console at
-                <ulink url="http://localhost:8080/auth/admin/index.html">http://localhost:8080/auth/admin/index.html</ulink>
-                (username: <emphasis>admin</emphasis> and password: <emphasis>admin</emphasis>). Keycloak will then prompt you to
-                enter in a new password.
-            </para>
-            <para>
-                To add Keycloak to other sever configurations (standalone.xml, standalone-ha.xml, etc.) start the server with
-                the desired server-config. If you are running the server in standalone mode run:
+                To add Keycloak to existing standalone.xml server config run:
 <programlisting>
-cd &lt;WILDFLY_HOME&gt;/bin
-./jboss-cli.sh -c --file=keycloak-install.cli
+bin/jboss-cli.sh --file=bin/keycloak-install.cli
 </programlisting>
-                Or if you are running in clustering (HA) mode (by having used -c standalone-ha.xml) then run:
+                To add Keycloak to existing standalone-ha.xml server config run:
 <programlisting>
-cd &lt;WILDFLY_HOME&gt;/bin
-./jboss-cli.sh -c --file=keycloak-install-ha.cli
+bin/jboss-cli.sh --file=bin/keycloak-install-ha.cli
 </programlisting>
-                You may see exceptions in the server log, but after restarting the server they should be gone.
-                You can restart the server with:
-                <programlisting>&lt;WILDFLY_HOME&gt;/bin/jboss-cli.sh -c :reload</programlisting>
-            </para>
-        </section>
-        <section>
-            <title>Install on existing JBoss EAP 6.4.0.GA</title>
-            <para>
-                Same procedure as WildFly &wildfly.version;, but download <literal>keycloak-overlay-eap6-&project.version;.zip</literal> or <literal>keycloak-overlay-eap6-&project.version;.tar.gz</literal>.
+                If you want to add Keycloak to a different server config edit keycloak-install.cli or keycloak-install-ha.cli
+                and change the name of the server config.
             </para>
         </section>
         <section>
@@ -98,12 +90,6 @@ cd &lt;WILDFLY_HOME&gt;/bin
                 or:
                 <programlisting>keycloak-&project.version;/bin/standalone.bat</programlisting>
             </para>
-            <para>
-                Once the server is started log into the admin console at
-                <ulink url="http://localhost:8080/auth/admin/index.html">http://localhost:8080/auth/admin/index.html</ulink>
-                (username: <emphasis>admin</emphasis> and password: <emphasis>admin</emphasis>). Keycloak will then prompt you to
-                enter in a new password.
-            </para>
         </section>
     </section>
 
@@ -113,9 +99,8 @@ cd &lt;WILDFLY_HOME&gt;/bin
             Although the Keycloak Server is designed to run out of the box, there's some things you'll need
             to configure before you go into production.  Specifically:
             <itemizedlist>
-
                 <listitem>
-                    Configuring Keycloak to use a production database.
+                    Configuring Keycloak to use a production database
                 </listitem>
 
                 <listitem>
@@ -128,7 +113,7 @@ cd &lt;WILDFLY_HOME&gt;/bin
             </itemizedlist>
         </para>
         <section>
-            <title>Admin User</title>
+            <title id="create-admin-user">Admin User</title>
             <para>
                 To access the admin console to configure Keycloak you need an account to login. There is no built in user,
                 instead you have to first create an admin account. This can done either by opening <ulink url="http://localhost:8080/auth">http://localhost:8080/auth</ulink>
@@ -143,7 +128,13 @@ bin/add-user.[sh|bat] -r master -u <username> -p <password>
 ]]></programlisting>
                 Then restart the server.
             </para>
-        </section>
+            <para>
+                For <literal>keycloak-overlay</literal>, please make sure to use:
+<programlisting><![CDATA[
+bin/add-user-keycloak.[sh|bat] -r master -u <username> -p <password>
+]]></programlisting>
+            </para>
+            </section>
 
         <section>
             <title>Relational Database Configuration</title>
@@ -229,8 +220,8 @@ bin/add-user.[sh|bat] -r master -u <username> -p <password>
                 <title>Tested databases</title>
                 <para>
                     Here is list of RDBMS databases and corresponding JDBC drivers, which were tested with Keycloak. Note that Hibernate dialect
-                    is usually set automatically according to your database, but in some cases, you must manually set the proper dialect,
-                    as the default dialect may not work correctly. You can setup dialect by adding property <literal>driverDialect</literal>
+                    is usually set automatically according to your database, but you have possibility to override if default dialect doesn't work correctly.
+                    You can setup dialect by adding property <literal>driverDialect</literal>
                     to the <literal>keycloak-server.json</literal> into <literal>connectionsJpa</literal> section (see above).
                     <table frame='all'><title>Tested databases</title>
                         <tgroup cols='3' align='left' colsep='1' rowsep='1'>
@@ -258,6 +249,11 @@ bin/add-user.[sh|bat] -r master -u <username> -p <password>
                                     <entry>auto</entry>
                                 </row>
                                 <row>
+                                    <entry>PostgresPlus 9.4</entry>
+                                    <entry>edb-jdbc17-4.0</entry>
+                                    <entry>auto</entry>
+                                </row>
+                                <row>
                                     <entry>Oracle 11g R1</entry>
                                     <entry>Oracle JDBC Driver v11.1.0.7</entry>
                                     <entry>auto</entry>
@@ -265,11 +261,11 @@ bin/add-user.[sh|bat] -r master -u <username> -p <password>
                                 <row>
                                     <entry>Microsoft SQL Server 2012</entry>
                                     <entry>Microsoft SQL Server JDBC Driver 4.0.2206.100</entry>
-                                    <entry>org.hibernate.dialect.SQLServer2008Dialect</entry>
+                                    <entry>auto</entry>
                                 </row>
                                 <row>
-                                    <entry>Sybase ASE 15.7</entry>
-                                    <entry>JDBC(TM)/7.07 ESD #5 (Build 26792)/P/EBF20686</entry>
+                                    <entry>IBM DB2 10.5</entry>
+                                    <entry>JDBC 4.0 Driver (db2jcc4.jar) 4.19.26</entry>
                                     <entry>auto</entry>
                                 </row>
                             </tbody>
@@ -381,9 +377,7 @@ bin/add-user.[sh|bat] -r master -u <username> -p <password>
                 By default the setting is like this:
 <programlisting><![CDATA[
 "connectionsHttpClient": {
-    "default": {
-        "disable-trust-manager": true
-    }
+    "default": {}
 },
 ]]></programlisting>
                 Possible configuration options are:
@@ -408,7 +402,7 @@ bin/add-user.[sh|bat] -r master -u <username> -p <password>
                         <term>connection-pool-size</term>
                         <listitem>
                             <para>
-                                How many connections can be in the pool.
+                                How many connections can be in the pool (128 by default).
                             </para>
                         </listitem>
                     </varlistentry>
@@ -416,16 +410,24 @@ bin/add-user.[sh|bat] -r master -u <username> -p <password>
                         <term>max-pooled-per-route</term>
                         <listitem>
                             <para>
-                                How many connections can be pooled per host.
+                                How many connections can be pooled per host (64 by default).
                             </para>
                         </listitem>
                     </varlistentry>
                     <varlistentry>
-                        <term>disable-trust-manager</term>
+                        <term>connection-ttl-millis</term>
                         <listitem>
                             <para>
-                                If true, HTTPS server certificates are not verified.  If you set this to false, you must
-                                configure a truststore.
+                                Maximum connection time to live in milliseconds. Not set by default.
+                            </para>
+                        </listitem>
+                    </varlistentry>
+                    <varlistentry>
+                        <term>max-connection-idle-time-millis</term>
+                        <listitem>
+                            <para>
+                                Maximum time the connection might stay idle in the connection pool (900 seconds by default). Will start background cleaner thread of Apache HTTP client.
+                                Set to -1 to disable this checking and the background thread.
                             </para>
                         </listitem>
                     </varlistentry>
@@ -435,44 +437,6 @@ bin/add-user.[sh|bat] -r master -u <username> -p <password>
                             <para>
                                 <literal>true</literal> by default.  When set to true, this will disable any cookie
                                 caching.
-                            </para>
-                        </listitem>
-                    </varlistentry>
-                    <varlistentry>
-                        <term>hostname-verification-policy</term>
-                        <listitem>
-                            <para>
-                                <literal>WILDCARD</literal> by default.  For HTTPS requests, this verifies the hostname
-                                of the server's certificate.  <literal>ANY</literal> means that the hostname is not verified.
-                                <literal>WILDCARD</literal> Allows wildcards in subdomain names i.e. *.foo.com.
-                                <literal>STRICT</literal> CN must match hostname exactly.
-                            </para>
-                        </listitem>
-                    </varlistentry>
-                    <varlistentry>
-                        <term>truststore</term>
-                        <listitem>
-                            <para>
-                                The value is the file path to a Java keystore file.  If
-                                you prefix the path with <literal>classpath:</literal>, then the truststore will be obtained
-                                from the deployment's classpath instead.
-                                HTTPS
-                                requests need a way to verify the host of the server they are talking to. This is
-                                what the trustore does. The keystore contains one or more trusted
-                                host certificates or certificate authorities.
-                            </para>
-                        </listitem>
-                    </varlistentry>
-                    <varlistentry>
-                        <term>truststore-password</term>
-                        <listitem>
-                            <para>
-                                Password for the truststore keystore.
-                                This is
-                                <emphasis>REQUIRED</emphasis>
-                                if
-                                <literal>truststore</literal>
-                                is set.
                             </para>
                         </listitem>
                     </varlistentry>
@@ -515,13 +479,111 @@ bin/add-user.[sh|bat] -r master -u <username> -p <password>
                 </variablelist>
             </para>
         </section>
+        <section id="truststore">
+            <title>Securing Outgoing Server HTTP Requests</title>
+            <para>
+            When Keycloak connects out to remote HTTP endpoints over secure https connection, it has to validate the other
+            server's certificate in order to ensure it is connecting to a trusted server. That is necessary in order to
+            prevent man-in-the-middle attacks.
+            </para>
+            <para>
+            How certificates are validated is configured in the <literal>standalone/configuration/keycloak-server.json</literal>.
+            By default truststore provider is not configured, and any https connections fall back to standard java truststore
+            configuration as described in <ulink url="https://docs.oracle.com/javase/8/docs/technotes/guides/security/jsse/JSSERefGuide.html">
+            Java's JSSE Reference Guide</ulink> - using <literal>javax.net.ssl.trustStore system property</literal>,
+            otherwise <literal>cacerts</literal> file that comes with java is used.
+            </para>
+            <para>
+                Truststore is used when connecting securely to identity brokers, LDAP identity providers, when sending emails,
+                and for backchannel communication with client applications.
+
+                Some of these facilities may - in case when no trusted certificate is found in your configured truststore -
+                fallback to using the JSSE provided truststore.
+
+                The default JavaMail API implementation used to send out emails behaves in this way, for example.
+            </para>
+            <para>
+            You can add your truststore configuration by using the following template:
+
+            <programlisting><![CDATA[
+"truststore": {
+    "file": {
+        "file": "path to your .jks file containing public certificates",
+        "password": "password",
+        "hostname-verification-policy": "WILDCARD",
+        "disabled": false
+    }
+}
+]]></programlisting>
+
+            </para>
+            <para>
+            Possible configuration options are:
+
+                <variablelist>
+                    <varlistentry>
+                        <term>file</term>
+                        <listitem>
+                            <para>
+                                The value is the file path to a Java keystore file.
+                                HTTPS requests need a way to verify the host of the server they are talking to. This is
+                                what the trustore does. The keystore contains one or more trusted host certificates or
+                                certificate authorities. Truststore file should only contain public certificates of your secured hosts.
+
+                                This is
+                                <emphasis>REQUIRED</emphasis>
+                                if <literal>disabled</literal> is not true.
+                            </para>
+                        </listitem>
+                    </varlistentry>
+                    <varlistentry>
+                        <term>password</term>
+                        <listitem>
+                            <para>
+                                Password for the truststore.
+                                This is
+                                <emphasis>REQUIRED</emphasis>
+                                if <literal>disabled</literal> is not true.
+                            </para>
+                        </listitem>
+                    </varlistentry>
+                    <varlistentry>
+                        <term>hostname-verification-policy</term>
+                        <listitem>
+                            <para>
+                                <literal>WILDCARD</literal> by default.  For HTTPS requests, this verifies the hostname
+                                of the server's certificate.  <literal>ANY</literal> means that the hostname is not verified.
+                                <literal>WILDCARD</literal> Allows wildcards in subdomain names i.e. *.foo.com.
+                                <literal>STRICT</literal> CN must match hostname exactly.
+                            </para>
+                        </listitem>
+                    </varlistentry>
+                    <varlistentry>
+                        <term>disabled</term>
+                        <listitem>
+                            <para>
+                                If true (default value), truststore configuration will be ignored, and certificate checking will
+                                fall back to JSSE configuration as described. If set to false, you must
+                                configure <literal>file</literal>, and <literal>password</literal> for the truststore.
+                            </para>
+                        </listitem>
+                    </varlistentry>
+                </variablelist>
+            </para>
+            <para>
+            You can use <emphasis>keytool</emphasis> to create a new truststore file and add trusted host certificates to it:
+
+                <programlisting>
+$ keytool -import -alias HOSTDOMAIN -keystore truststore.jks -file host-certificate.cer
+                </programlisting>
+            </para>
+        </section>
         <section id="ssl_modes">
             <title>SSL/HTTPS Requirement/Modes</title>
             <warning>
                 <para>
-                    Keycloak is not set up by default to handle SSL/HTTPS in either the
-                    war distribution or appliance.  It is highly recommended that you either enable SSL on the Keycloak server
-                    itself or on a reverse proxy in front of the Keycloak server.
+                    Keycloak is not set up by default to handle SSL/HTTPS. It is highly recommended that you either enable SSL
+                    on the Keycloak server itself or on a reverse proxy in front of the Keycloak server.
                 </para>
             </warning>
             <para>
@@ -776,7 +838,7 @@ $ keytool -import -alias yourdomain -keystore keycloak.jks -file your-certificat
             <link linkend='themes'>Themes</link> sections for more information on how to do this.
         </para>
     </section>
-    
+
     <section>
         <title>Installing Keycloak Server as Root Context</title>
         <para>
@@ -799,11 +861,11 @@ $ keytool -import -alias yourdomain -keystore keycloak.jks -file your-certificat
              <note>
                  If you have run your server before altering the root context, your database
                  will contain references to the old /auth context. Your clients may also have incorrect
-                 references.  To fix this on the server side, you will need to <link linkend="export-import">export 
-                 your database to json, make corrections, and then import.</link>  Client-side keycloak.json 
+                 references.  To fix this on the server side, you will need to <link linkend="export-import">export
+                 your database to json, make corrections, and then import.</link>  Client-side keycloak.json
                  files will need to be updated manually as well.
              </note>
         </para>
-        
+
     </section>
 </chapter>

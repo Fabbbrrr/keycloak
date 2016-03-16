@@ -1,6 +1,21 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.keycloak.services.resources.admin;
 
-import org.jboss.logging.Logger;
 import org.jboss.resteasy.annotations.cache.NoCache;
 import org.jboss.resteasy.spi.NotFoundException;
 import org.keycloak.broker.provider.IdentityProvider;
@@ -24,7 +39,8 @@ import org.keycloak.representations.idm.IdentityProviderMapperRepresentation;
 import org.keycloak.representations.idm.IdentityProviderMapperTypeRepresentation;
 import org.keycloak.representations.idm.IdentityProviderRepresentation;
 import org.keycloak.services.ErrorResponse;
-import org.keycloak.social.SocialIdentityProvider;
+import org.keycloak.services.ServicesLogger;
+import org.keycloak.broker.social.SocialIdentityProvider;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
@@ -51,14 +67,14 @@ import java.util.Map;
  */
 public class IdentityProviderResource {
 
-    private static Logger logger = Logger.getLogger(IdentityProviderResource.class);
+    private static ServicesLogger logger = ServicesLogger.ROOT_LOGGER;
 
     private final RealmAuth auth;
     private final RealmModel realm;
     private final KeycloakSession session;
     private final IdentityProviderModel identityProviderModel;
     private final AdminEventBuilder adminEvent;
-    
+
     @Context private UriInfo uriInfo;
 
     public IdentityProviderResource(RealmAuth auth, RealmModel realm, KeycloakSession session, IdentityProviderModel identityProviderModel, AdminEventBuilder adminEvent) {
@@ -94,9 +110,9 @@ public class IdentityProviderResource {
         this.auth.requireManage();
 
         this.realm.removeIdentityProviderByAlias(this.identityProviderModel.getAlias());
-        
+
         adminEvent.operation(OperationType.DELETE).resourcePath(uriInfo).success();
-        
+
         return Response.noContent().build();
     }
 
@@ -113,30 +129,34 @@ public class IdentityProviderResource {
         try {
             this.auth.requireManage();
 
-            String internalId = providerRep.getInternalId();
-            String newProviderId = providerRep.getAlias();
-            String oldProviderId = getProviderIdByInternalId(this.realm, internalId);
+            updateIdpFromRep(providerRep, realm, session);
 
-            this.realm.updateIdentityProvider(RepresentationToModel.toModel(realm, providerRep));
-
-            if (oldProviderId != null && !oldProviderId.equals(newProviderId)) {
-
-                // Admin changed the ID (alias) of identity provider. We must update all clients and users
-                logger.debug("Changing providerId in all clients and linked users. oldProviderId=" + oldProviderId + ", newProviderId=" + newProviderId);
-
-                updateUsersAfterProviderAliasChange(this.session.users().getUsers(this.realm, false), oldProviderId, newProviderId);
-            }
-            
             adminEvent.operation(OperationType.UPDATE).resourcePath(uriInfo).representation(providerRep).success();
-            
+
             return Response.noContent().build();
         } catch (ModelDuplicateException e) {
             return ErrorResponse.exists("Identity Provider " + providerRep.getAlias() + " already exists");
         }
     }
 
+    public static void updateIdpFromRep(IdentityProviderRepresentation providerRep, RealmModel realm, KeycloakSession session) {
+        String internalId = providerRep.getInternalId();
+        String newProviderId = providerRep.getAlias();
+        String oldProviderId = getProviderIdByInternalId(realm, internalId);
+
+        realm.updateIdentityProvider(RepresentationToModel.toModel(realm, providerRep));
+
+        if (oldProviderId != null && !oldProviderId.equals(newProviderId)) {
+
+            // Admin changed the ID (alias) of identity provider. We must update all clients and users
+            logger.debug("Changing providerId in all clients and linked users. oldProviderId=" + oldProviderId + ", newProviderId=" + newProviderId);
+
+            updateUsersAfterProviderAliasChange(session.users().getUsers(realm, false), oldProviderId, newProviderId, realm, session);
+        }
+    }
+
     // return ID of IdentityProvider from realm based on internalId of this provider
-    private String getProviderIdByInternalId(RealmModel realm, String providerInternalId) {
+    private static String getProviderIdByInternalId(RealmModel realm, String providerInternalId) {
         List<IdentityProviderModel> providerModels = realm.getIdentityProviders();
         for (IdentityProviderModel providerModel : providerModels) {
             if (providerModel.getInternalId().equals(providerInternalId)) {
@@ -147,17 +167,17 @@ public class IdentityProviderResource {
         return null;
     }
 
-    private void updateUsersAfterProviderAliasChange(List<UserModel> users, String oldProviderId, String newProviderId) {
+    private static void updateUsersAfterProviderAliasChange(List<UserModel> users, String oldProviderId, String newProviderId, RealmModel realm, KeycloakSession session) {
         for (UserModel user : users) {
-            FederatedIdentityModel federatedIdentity = this.session.users().getFederatedIdentity(user, oldProviderId, this.realm);
+            FederatedIdentityModel federatedIdentity = session.users().getFederatedIdentity(user, oldProviderId, realm);
             if (federatedIdentity != null) {
                 // Remove old link first
-                this.session.users().removeFederatedIdentity(this.realm, user, oldProviderId);
+                session.users().removeFederatedIdentity(realm, user, oldProviderId);
 
                 // And create new
                 FederatedIdentityModel newFederatedIdentity = new FederatedIdentityModel(newProviderId, federatedIdentity.getUserId(), federatedIdentity.getUserName(),
                         federatedIdentity.getToken());
-                this.session.users().addFederatedIdentity(this.realm, user, newFederatedIdentity);
+                session.users().addFederatedIdentity(realm, user, newFederatedIdentity);
             }
         }
     }
@@ -263,10 +283,10 @@ public class IdentityProviderResource {
         auth.requireManage();
         IdentityProviderMapperModel model = RepresentationToModel.toModel(mapper);
         model = realm.addIdentityProviderMapper(model);
-        
+
         adminEvent.operation(OperationType.CREATE).resourcePath(uriInfo, model.getId())
             .representation(mapper).success();
-        
+
         return Response.created(uriInfo.getAbsolutePathBuilder().path(model.getId()).build()).build();
 
     }

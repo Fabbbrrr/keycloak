@@ -1,18 +1,32 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.keycloak.services.resources.admin;
 
-import org.codehaus.jackson.annotate.JsonProperty;
-import org.jboss.logging.Logger;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.jboss.resteasy.annotations.cache.NoCache;
 import org.jboss.resteasy.spi.HttpRequest;
 import org.jboss.resteasy.spi.HttpResponse;
 import org.jboss.resteasy.spi.NotFoundException;
 import org.keycloak.common.ClientConnection;
 import org.keycloak.common.Version;
-import org.keycloak.freemarker.BrowserSecurityHeaderSetup;
-import org.keycloak.freemarker.FreeMarkerException;
-import org.keycloak.freemarker.FreeMarkerUtil;
-import org.keycloak.freemarker.Theme;
-import org.keycloak.freemarker.ThemeProvider;
+import org.keycloak.theme.BrowserSecurityHeaderSetup;
+import org.keycloak.theme.FreeMarkerException;
+import org.keycloak.theme.FreeMarkerUtil;
+import org.keycloak.theme.Theme;
 import org.keycloak.models.AdminRoles;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.Constants;
@@ -21,19 +35,20 @@ import org.keycloak.models.RealmModel;
 import org.keycloak.models.RoleModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.protocol.oidc.OIDCLoginProtocolService;
+import org.keycloak.services.ServicesLogger;
 import org.keycloak.services.managers.AppAuthManager;
 import org.keycloak.services.managers.ClientManager;
 import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.managers.RealmManager;
 import org.keycloak.services.resources.KeycloakApplication;
 import org.keycloak.services.Urls;
+import org.keycloak.utils.MediaType;
 
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.HttpHeaders;
-import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriInfo;
 import javax.ws.rs.ext.Providers;
@@ -48,7 +63,7 @@ import javax.ws.rs.QueryParam;
  * @version $Revision: 1 $
  */
 public class AdminConsole {
-    protected static final Logger logger = Logger.getLogger(AdminConsole.class);
+    protected static final ServicesLogger logger = ServicesLogger.ROOT_LOGGER;
 
     @Context
     protected UriInfo uriInfo;
@@ -264,7 +279,7 @@ public class AdminConsole {
         if (!uriInfo.getRequestUri().getPath().endsWith("/")) {
             return Response.status(302).location(uriInfo.getRequestUriBuilder().path("/").build()).build();
         } else {
-            Theme theme = getTheme();
+            Theme theme = AdminRoot.getTheme(session, realm);
 
             Map<String, Object> map = new HashMap<>();
 
@@ -280,15 +295,10 @@ public class AdminConsole {
 
             FreeMarkerUtil freeMarkerUtil = new FreeMarkerUtil();
             String result = freeMarkerUtil.processTemplate(map, "index.ftl", theme);
-            Response.ResponseBuilder builder = Response.status(Response.Status.OK).type(MediaType.TEXT_HTML).entity(result);
+            Response.ResponseBuilder builder = Response.status(Response.Status.OK).type(MediaType.TEXT_HTML_UTF_8).language(Locale.ENGLISH).entity(result);
             BrowserSecurityHeaderSetup.headers(builder, realm);
             return builder.build();
         }
-    }
-
-    private Theme getTheme() throws IOException {
-        ThemeProvider themeProvider = session.getProvider(ThemeProvider.class, "extending");
-        return themeProvider.getTheme(realm.getAdminTheme(), Theme.Type.ADMIN);
     }
 
     @GET
@@ -301,23 +311,7 @@ public class AdminConsole {
     @Path("messages.json")
     @Produces(MediaType.APPLICATION_JSON)
     public Properties getMessages(@QueryParam("lang") String lang) {
-        if (lang == null) {
-            logger.warn("Locale not specified for messages.json");
-            lang = "en";
-        }
-
-        try {
-            Properties msgs = getTheme().getMessages("admin-messages", Locale.forLanguageTag(lang));
-            if (msgs.isEmpty()) {
-                logger.warn("Message bundle not found for language code '" + lang + "'");
-                msgs = getTheme().getMessages("admin-messages", Locale.ENGLISH);
-            }
-
-            if (msgs.isEmpty()) logger.fatal("Message bundle not found for language code 'en'");
-
-            return msgs;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        return AdminRoot.getMessages(session, realm, "admin-messages", lang);
     }
+
 }

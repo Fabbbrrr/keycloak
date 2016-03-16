@@ -1,23 +1,34 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.keycloak.authentication.requiredactions;
 
-import org.jboss.logging.Logger;
 import org.keycloak.Config;
 import org.keycloak.authentication.RequiredActionContext;
 import org.keycloak.authentication.RequiredActionFactory;
 import org.keycloak.authentication.RequiredActionProvider;
 import org.keycloak.events.EventBuilder;
 import org.keycloak.events.EventType;
-import org.keycloak.login.LoginFormsProvider;
-import org.keycloak.models.ClientSessionModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
-import org.keycloak.models.RequiredCredentialModel;
 import org.keycloak.models.UserCredentialModel;
 import org.keycloak.models.UserModel;
-import org.keycloak.models.UserSessionModel;
 import org.keycloak.models.utils.CredentialValidation;
-import org.keycloak.representations.idm.CredentialRepresentation;
-import org.keycloak.services.managers.ClientSessionCode;
+import org.keycloak.services.ServicesLogger;
 import org.keycloak.services.messages.Messages;
 import org.keycloak.services.validation.Validation;
 
@@ -29,7 +40,7 @@ import javax.ws.rs.core.Response;
  * @version $Revision: 1 $
  */
 public class UpdateTotp implements RequiredActionProvider, RequiredActionFactory {
-    protected static Logger logger = Logger.getLogger(UpdateTotp.class);
+    protected static ServicesLogger logger = ServicesLogger.ROOT_LOGGER;
     @Override
     public void evaluateTriggers(RequiredActionContext context) {
     }

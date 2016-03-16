@@ -1,6 +1,21 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.keycloak.services.resources.admin;
 
-import org.jboss.logging.Logger;
 import org.jboss.resteasy.annotations.cache.NoCache;
 import org.jboss.resteasy.spi.BadRequestException;
 import org.jboss.resteasy.spi.NotFoundException;
@@ -17,18 +32,19 @@ import org.keycloak.models.UserSessionModel;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.models.utils.ModelToRepresentation;
 import org.keycloak.models.utils.RepresentationToModel;
+import org.keycloak.protocol.ClientInstallationProvider;
 import org.keycloak.representations.adapters.action.GlobalRequestResult;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.representations.idm.UserSessionRepresentation;
+import org.keycloak.services.ServicesLogger;
 import org.keycloak.services.clientregistration.ClientRegistrationTokenUtils;
 import org.keycloak.services.managers.ClientManager;
 import org.keycloak.services.managers.RealmManager;
 import org.keycloak.services.managers.ResourceAdminManager;
 import org.keycloak.services.resources.KeycloakApplication;
 import org.keycloak.services.ErrorResponse;
-import org.keycloak.util.JsonSerialization;
 import org.keycloak.common.util.Time;
 
 import javax.ws.rs.Consumes;
@@ -45,12 +61,11 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriInfo;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+
 import static java.lang.Boolean.TRUE;
 
 
@@ -61,13 +76,13 @@ import static java.lang.Boolean.TRUE;
  * @version $Revision: 1 $
  */
 public class ClientResource {
-    protected static final Logger logger = Logger.getLogger(ClientResource.class);
+    protected static final ServicesLogger logger = ServicesLogger.ROOT_LOGGER;
     protected RealmModel realm;
     private RealmAuth auth;
     private AdminEventBuilder adminEvent;
     protected ClientModel client;
     protected KeycloakSession session;
-    
+
     @Context
     protected UriInfo uriInfo;
 
@@ -106,11 +121,7 @@ public class ClientResource {
         auth.requireManage();
 
         try {
-            if (TRUE.equals(rep.isServiceAccountsEnabled()) && !client.isServiceAccountsEnabled()) {
-                new ClientManager(new RealmManager(session)).enableServiceAccount(client);;
-            }
-
-            RepresentationToModel.updateClient(rep, client);
+            updateClientFromRep(rep, client, session);
             adminEvent.operation(OperationType.UPDATE).resourcePath(uriInfo).representation(rep).success();
             return Response.noContent().build();
         } catch (ModelDuplicateException e) {
@@ -118,6 +129,13 @@ public class ClientResource {
         }
     }
 
+    public static void updateClientFromRep(ClientRepresentation rep, ClientModel client, KeycloakSession session) throws ModelDuplicateException {
+        if (TRUE.equals(rep.isServiceAccountsEnabled()) && !client.isServiceAccountsEnabled()) {
+            new ClientManager(new RealmManager(session)).enableServiceAccount(client);
+        }
+
+        RepresentationToModel.updateClient(rep, client);
+    }
 
     /**
      * Get representation of the client
@@ -143,46 +161,13 @@ public class ClientResource {
         return new ClientAttributeCertificateResource(realm, auth, client, session, attributePrefix, adminEvent);
     }
 
-
-    /**
-     * Get keycloak.json file
-     *
-     * Returns a keycloak.json file to be used to configure the adapter of the specified client.
-     *
-     * @return
-     * @throws IOException
-     */
     @GET
     @NoCache
-    @Path("installation/json")
-    @Produces(MediaType.APPLICATION_JSON)
-    public String getInstallation() throws IOException {
-        auth.requireView();
-
-        ClientManager clientManager = new ClientManager(new RealmManager(session));
-        Object rep = clientManager.toInstallationRepresentation(realm, client, getKeycloakApplication().getBaseUri(uriInfo));
-
-        // TODO Temporary solution to pretty-print
-        return JsonSerialization.mapper.writerWithDefaultPrettyPrinter().writeValueAsString(rep);
-    }
-
-    /**
-     * Get adapter configuration XML for JBoss / Wildfly Keycloak subsystem
-     *
-     * Returns XML that can be included in the JBoss / Wildfly Keycloak subsystem to configure the adapter of that client.
-     *
-     * @return
-     * @throws IOException
-     */
-    @GET
-    @NoCache
-    @Path("installation/jboss")
-    @Produces(MediaType.TEXT_PLAIN)
-    public String getJBossInstallation() throws IOException {
-        auth.requireView();
-
-        ClientManager clientManager = new ClientManager(new RealmManager(session));
-        return clientManager.toJBossSubsystemConfig(realm, client, getKeycloakApplication().getBaseUri(uriInfo));
+    @Path("installation/providers/{providerId}")
+    public Response getInstallationProvider(@PathParam("providerId") String providerId) {
+        ClientInstallationProvider provider = session.getProvider(ClientInstallationProvider.class, providerId);
+        if (provider == null) throw new NotFoundException("Unknown Provider");
+        return provider.generateInstallation(session, realm, client, keycloak.getBaseUri(uriInfo));
     }
 
     /**
@@ -272,64 +257,6 @@ public class ClientResource {
     }
 
     /**
-     * Get allowed origins
-     *
-     * This is used for CORS requests.  Access tokens will have
-     * their allowedOrigins claim set to this value for tokens created for this client.
-     *
-     * @return
-     */
-    @Path("allowed-origins")
-    @GET
-    @NoCache
-    @Produces(MediaType.APPLICATION_JSON)
-    public Set<String> getAllowedOrigins()
-    {
-        auth.requireView();
-        return client.getWebOrigins();
-    }
-
-    /**
-     * Update allowed origins
-     *
-     * This is used for CORS requests.  Access tokens will have
-     * their allowedOrigins claim set to this value for tokens created for this client.
-     *
-     * @param allowedOrigins
-     */
-    @Path("allowed-origins")
-    @PUT
-    @Consumes(MediaType.APPLICATION_JSON)
-    public void updateAllowedOrigins(Set<String> allowedOrigins)
-    {
-        auth.requireManage();
-
-        client.setWebOrigins(allowedOrigins);
-        adminEvent.operation(OperationType.UPDATE).resourcePath(uriInfo).representation(client).success();
-    }
-
-    /**
-     * Delete the specified origins from current allowed origins
-     *
-     * This is used for CORS requests.  Access tokens will have
-     * their allowedOrigins claim set to this value for tokens created for this client.
-     *
-     * @param allowedOrigins List of origins to delete
-     */
-    @Path("allowed-origins")
-    @DELETE
-    @Consumes(MediaType.APPLICATION_JSON)
-    public void deleteAllowedOrigins(Set<String> allowedOrigins)
-    {
-        auth.requireManage();
-
-        for (String origin : allowedOrigins) {
-            client.removeWebOrigin(origin);
-        }
-        adminEvent.operation(OperationType.DELETE).resourcePath(uriInfo).success();
-    }
-
-    /**
      * Get a user dedicated to the service account
      *
      * @return
@@ -365,9 +292,9 @@ public class ClientResource {
         auth.requireManage();
         adminEvent.operation(OperationType.ACTION).resourcePath(uriInfo).success();
         return new ResourceAdminManager(session).pushClientRevocationPolicy(uriInfo.getRequestUri(), realm, client);
-    
+
     }
-    
+
     /**
      * Get application session count
      *
@@ -470,41 +397,6 @@ public class ClientResource {
             sessions.add(rep);
         }
         return sessions;
-    }
-
-
-    /**
-     * Logout all sessions
-     *
-     * If the client has an admin URL, invalidate all sessions associated with that client directly.
-     *
-     */
-    @Path("logout-all")
-    @POST
-    public GlobalRequestResult logoutAll() {
-        auth.requireManage();
-        adminEvent.operation(OperationType.ACTION).resourcePath(uriInfo).success();
-        return new ResourceAdminManager(session).logoutClient(uriInfo.getRequestUri(), realm, client);
-
-    }
-
-    /**
-     * Logout the user by username
-     *
-     * If the client has an admin URL, invalidate the sessions for a particular user directly.
-     *
-     */
-    @Path("logout-user/{username}")
-    @POST
-    public void logout(final @PathParam("username") String username) {
-        auth.requireManage();
-        UserModel user = session.users().getUserByUsername(username, realm);
-        if (user == null) {
-            throw new NotFoundException("User not found");
-        }
-        adminEvent.operation(OperationType.ACTION).resourcePath(uriInfo).success();
-        new ResourceAdminManager(session).logoutUserFromClient(uriInfo.getRequestUri(), realm, client, user);
-
     }
 
     /**

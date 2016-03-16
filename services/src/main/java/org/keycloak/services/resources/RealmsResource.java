@@ -1,19 +1,22 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.keycloak.services.resources;
 
-import java.util.List;
-
-import javax.ws.rs.GET;
-import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
-import javax.ws.rs.Produces;
-import javax.ws.rs.QueryParam;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.UriBuilder;
-import javax.ws.rs.core.UriInfo;
-
-import org.jboss.logging.Logger;
+import org.jboss.resteasy.spi.HttpRequest;
 import org.jboss.resteasy.spi.NotFoundException;
 import org.jboss.resteasy.spi.ResteasyProviderFactory;
 import org.keycloak.common.ClientConnection;
@@ -27,14 +30,22 @@ import org.keycloak.protocol.LoginProtocolFactory;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.OIDCLoginProtocolService;
 import org.keycloak.provider.ProviderFactory;
+import org.keycloak.services.ServicesLogger;
 import org.keycloak.services.clientregistration.ClientRegistrationService;
-import org.keycloak.services.managers.AuthenticationManager;
-import org.keycloak.services.managers.BruteForceProtector;
 import org.keycloak.services.managers.RealmManager;
 import org.keycloak.services.resources.spi.RealmResourceProvider;
 import org.keycloak.services.resources.spi.RealmResourceProviderFactory;
 import org.keycloak.services.util.CacheControlUtil;
 import org.keycloak.wellknown.WellKnownProvider;
+
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
+import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
+import javax.ws.rs.core.*;
+import javax.ws.rs.core.Response.ResponseBuilder;
+import java.util.List;
 
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
@@ -42,7 +53,7 @@ import org.keycloak.wellknown.WellKnownProvider;
  */
 @Path("/realms")
 public class RealmsResource {
-    protected static Logger logger = Logger.getLogger(RealmsResource.class);
+    protected static ServicesLogger logger = ServicesLogger.ROOT_LOGGER;
 
     @Context
     protected KeycloakSession session;
@@ -51,10 +62,15 @@ public class RealmsResource {
     protected ClientConnection clientConnection;
 
     @Context
-    protected BruteForceProtector protector;
+    private HttpRequest request;
 
     public static UriBuilder realmBaseUrl(UriInfo uriInfo) {
-        return uriInfo.getBaseUriBuilder().path(RealmsResource.class).path(RealmsResource.class, "getRealmResource");
+        UriBuilder baseUriBuilder = uriInfo.getBaseUriBuilder();
+        return realmBaseUrl(baseUriBuilder);
+    }
+
+    public static UriBuilder realmBaseUrl(UriBuilder baseUriBuilder) {
+        return baseUriBuilder.path(RealmsResource.class).path(RealmsResource.class, "getRealmResource");
     }
 
     public static UriBuilder accountUrl(UriBuilder base) {
@@ -65,6 +81,10 @@ public class RealmsResource {
         return uriInfo.getBaseUriBuilder().path(RealmsResource.class).path(RealmsResource.class, "getProtocol");
     }
 
+    public static UriBuilder protocolUrl(UriBuilder builder) {
+        return builder.path(RealmsResource.class).path(RealmsResource.class, "getProtocol");
+    }
+
     public static UriBuilder clientRegistrationUrl(UriInfo uriInfo) {
         return uriInfo.getBaseUriBuilder().path(RealmsResource.class).path(RealmsResource.class, "getClientsService");
     }
@@ -73,57 +93,30 @@ public class RealmsResource {
         return uriInfo.getBaseUriBuilder().path(RealmsResource.class).path(RealmsResource.class, "getBrokerService");
     }
 
-    @Path("{realm}/login-status-iframe.html")
-    @Deprecated
-    public Object getLoginStatusIframe(final @PathParam("realm") String name,
-                                       @QueryParam("client_id") String client_id,
-                                       @QueryParam("origin") String origin) {
-        RealmModel realm = init(name);
-
-        EventBuilder event = new EventBuilder(realm, session, clientConnection);
-        AuthenticationManager authManager = new AuthenticationManager(protector);
-
-        LoginProtocolFactory factory = (LoginProtocolFactory)session.getKeycloakSessionFactory().getProviderFactory(LoginProtocol.class, OIDCLoginProtocol.LOGIN_PROTOCOL);
-        OIDCLoginProtocolService endpoint = (OIDCLoginProtocolService)factory.createProtocolEndpoint(realm, event, authManager);
-
-        ResteasyProviderFactory.getInstance().injectProperties(endpoint);
-        return endpoint.getLoginStatusIframe();
-
-    }
-
     @Path("{realm}/protocol/{protocol}")
     public Object getProtocol(final @PathParam("realm") String name,
                                             final @PathParam("protocol") String protocol) {
         RealmModel realm = init(name);
 
         EventBuilder event = new EventBuilder(realm, session, clientConnection);
-        AuthenticationManager authManager = new AuthenticationManager(protector);
 
         LoginProtocolFactory factory = (LoginProtocolFactory)session.getKeycloakSessionFactory().getProviderFactory(LoginProtocol.class, protocol);
-        Object endpoint = factory.createProtocolEndpoint(realm, event, authManager);
+        Object endpoint = factory.createProtocolEndpoint(realm, event);
 
         ResteasyProviderFactory.getInstance().injectProperties(endpoint);
         return endpoint;
-    }
-
-    @Path("{realm}/tokens")
-    @Deprecated
-    public Object getTokenService(final @PathParam("realm") String name) {
-        // for backward compatibility.
-        return getProtocol(name, "openid-connect");
     }
 
     @Path("{realm}/login-actions")
     public LoginActionsService getLoginActionsService(final @PathParam("realm") String name) {
         RealmModel realm = init(name);
         EventBuilder event = new EventBuilder(realm, session, clientConnection);
-        AuthenticationManager authManager = new AuthenticationManager(protector);
-        LoginActionsService service = new LoginActionsService(realm, authManager, event);
+        LoginActionsService service = new LoginActionsService(realm, event);
         ResteasyProviderFactory.getInstance().injectProperties(service);
         return service;
     }
 
-    @Path("{realm}/clients")
+    @Path("{realm}/clients-registrations")
     public ClientRegistrationService getClientsService(final @PathParam("realm") String name) {
         RealmModel realm = init(name);
         EventBuilder event = new EventBuilder(realm, session, clientConnection);
@@ -155,7 +148,7 @@ public class RealmsResource {
     public AccountService getAccountService(final @PathParam("realm") String name) {
         RealmModel realm = init(name);
 
-        ClientModel client = realm.getClientNameMap().get(Constants.ACCOUNT_MANAGEMENT_CLIENT_ID);
+        ClientModel client = realm.getClientByClientId(Constants.ACCOUNT_MANAGEMENT_CLIENT_ID);
         if (client == null || !client.isEnabled()) {
             logger.debug("account management not enabled");
             throw new NotFoundException("account management not enabled");
@@ -180,7 +173,7 @@ public class RealmsResource {
     public IdentityBrokerService getBrokerService(final @PathParam("realm") String name) {
         RealmModel realm = init(name);
 
-        IdentityBrokerService brokerService = new IdentityBrokerService(realm, protector);
+        IdentityBrokerService brokerService = new IdentityBrokerService(realm);
         ResteasyProviderFactory.getInstance().injectProperties(brokerService);
 
         brokerService.init();
@@ -196,7 +189,9 @@ public class RealmsResource {
         init(name);
 
         WellKnownProvider wellKnown = session.getProvider(WellKnownProvider.class, providerName);
-        return Response.ok(wellKnown.getConfig()).cacheControl(CacheControlUtil.getDefaultCacheControl()).build();
+
+        ResponseBuilder responseBuilder = Response.ok(wellKnown.getConfig()).cacheControl(CacheControlUtil.getDefaultCacheControl());
+        return Cors.add(request, responseBuilder).allowedOrigins("*").build();
     }
 
     @Path("{realm}/{unknown_path}")

@@ -1,19 +1,32 @@
-package org.keycloak.federation.ldap.mappers;
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
-import java.util.List;
-import java.util.Map;
+package org.keycloak.federation.ldap.mappers;
 
 import org.keycloak.Config;
 import org.keycloak.federation.ldap.LDAPFederationProvider;
 import org.keycloak.federation.ldap.LDAPFederationProviderFactory;
-import org.keycloak.mappers.MapperConfigValidationException;
+import org.keycloak.mappers.FederationConfigValidationException;
 import org.keycloak.mappers.UserFederationMapper;
 import org.keycloak.mappers.UserFederationMapperFactory;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserFederationMapperModel;
-import org.keycloak.models.UserFederationProvider;
 import org.keycloak.provider.ProviderConfigProperty;
 import org.keycloak.representations.idm.UserFederationMapperSyncConfigRepresentation;
 
@@ -72,10 +85,10 @@ public abstract class AbstractLDAPFederationMapperFactory implements UserFederat
         return configProperty;
     }
 
-    protected void checkMandatoryConfigAttribute(String name, String displayName, UserFederationMapperModel mapperModel) throws MapperConfigValidationException {
+    protected void checkMandatoryConfigAttribute(String name, String displayName, UserFederationMapperModel mapperModel) throws FederationConfigValidationException {
         String attrConfigValue = mapperModel.getConfig().get(name);
         if (attrConfigValue == null || attrConfigValue.trim().isEmpty()) {
-            throw new MapperConfigValidationException("Missing configuration for '" + displayName + "'");
+            throw new FederationConfigValidationException("Missing configuration for '" + displayName + "'");
         }
     }
 

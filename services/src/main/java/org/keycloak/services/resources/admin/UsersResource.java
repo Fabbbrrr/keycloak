@@ -1,6 +1,21 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.keycloak.services.resources.admin;
 
-import org.jboss.logging.Logger;
 import org.jboss.resteasy.annotations.cache.NoCache;
 import org.jboss.resteasy.spi.BadRequestException;
 import org.jboss.resteasy.spi.NotFoundException;
@@ -21,6 +36,7 @@ import org.keycloak.models.GroupModel;
 import org.keycloak.models.IdentityProviderModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.ModelDuplicateException;
+import org.keycloak.models.ModelException;
 import org.keycloak.models.ModelReadOnlyException;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserConsentModel;
@@ -39,10 +55,12 @@ import org.keycloak.representations.idm.GroupRepresentation;
 import org.keycloak.representations.idm.UserConsentRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.representations.idm.UserSessionRepresentation;
+import org.keycloak.services.ErrorResponseException;
 import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.managers.ClientSessionCode;
 import org.keycloak.services.managers.UserManager;
 import org.keycloak.services.ErrorResponse;
+import org.keycloak.services.ServicesLogger;
 import org.keycloak.services.Urls;
 
 import javax.ws.rs.Consumes;
@@ -58,11 +76,14 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
 import javax.ws.rs.WebApplicationException;
 
+import java.io.IOException;
 import java.net.URI;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -70,6 +91,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import org.keycloak.models.UsernameLoginFailureModel;
@@ -77,6 +99,10 @@ import org.keycloak.services.managers.BruteForceProtector;
 import org.keycloak.services.managers.UserSessionManager;
 import org.keycloak.services.resources.AccountService;
 import org.keycloak.common.util.Time;
+import org.keycloak.services.validation.Validation;
+import org.keycloak.theme.Theme;
+import org.keycloak.theme.Theme.Type;
+import org.keycloak.theme.ThemeProvider;
 
 /**
  * Base resource for managing users
@@ -85,7 +111,7 @@ import org.keycloak.common.util.Time;
  * @version $Revision: 1 $
  */
 public class UsersResource {
-    protected static final Logger logger = Logger.getLogger(UsersResource.class);
+    protected static final ServicesLogger logger = ServicesLogger.ROOT_LOGGER;
 
     protected RealmModel realm;
 
@@ -104,9 +130,6 @@ public class UsersResource {
 
     @Context
     protected HttpHeaders headers;
-
-    @Context
-    protected BruteForceProtector protector;
 
     public UsersResource(RealmModel realm, RealmAuth auth, TokenManager tokenManager, AdminEventBuilder adminEvent) {
         this.auth = auth;
@@ -150,7 +173,7 @@ public class UsersResource {
                 }
             }
 
-            updateUserFromRep(user, rep, attrsToRemove);
+            updateUserFromRep(user, rep, attrsToRemove, realm, session);
             adminEvent.operation(OperationType.UPDATE).resourcePath(uriInfo).representation(rep).success();
 
             if (session.getTransaction().isActive()) {
@@ -189,7 +212,7 @@ public class UsersResource {
         try {
             UserModel user = session.users().addUser(realm, rep.getUsername());
             Set<String> emptySet = Collections.emptySet();
-            updateUserFromRep(user, rep, emptySet);
+            updateUserFromRep(user, rep, emptySet, realm, session);
 
             adminEvent.operation(OperationType.CREATE).resourcePath(uriInfo, user.getId()).representation(rep).success();
 
@@ -206,13 +229,13 @@ public class UsersResource {
         }
     }
 
-    private void updateUserFromRep(UserModel user, UserRepresentation rep, Set<String> attrsToRemove) {
-        if (realm.isEditUsernameAllowed()) {
+    public static void updateUserFromRep(UserModel user, UserRepresentation rep, Set<String> attrsToRemove, RealmModel realm, KeycloakSession session) {
+        if (rep.getUsername() != null && realm.isEditUsernameAllowed()) {
             user.setUsername(rep.getUsername());
         }
-        user.setEmail(rep.getEmail());
-        user.setFirstName(rep.getFirstName());
-        user.setLastName(rep.getLastName());
+        if (rep.getEmail() != null) user.setEmail(rep.getEmail());
+        if (rep.getFirstName() != null) user.setFirstName(rep.getFirstName());
+        if (rep.getLastName() != null) user.setLastName(rep.getLastName());
 
         if (rep.isEnabled() != null) user.setEnabled(rep.isEnabled());
         if (rep.isTotp() != null) user.setOtpEnabled(rep.isTotp());
@@ -270,7 +293,7 @@ public class UsersResource {
             rep.setFederatedIdentities(reps);
         }
 
-        if ((protector != null) && protector.isTemporarilyDisabled(session, realm, rep.getUsername())) {
+        if (session.getProvider(BruteForceProtector.class).isTemporarilyDisabled(session, realm, rep.getUsername())) {
             rep.setEnabled(false);
         }
 
@@ -694,6 +717,9 @@ public class UsersResource {
         if (pass == null || pass.getValue() == null || !CredentialRepresentation.PASSWORD.equals(pass.getType())) {
             throw new BadRequestException("No password provided");
         }
+        if (Validation.isBlank(pass.getValue())) {
+            throw new BadRequestException("Empty password not allowed");
+        }
 
         UserCredentialModel cred = RepresentationToModel.convertCredential(pass);
         try {
@@ -702,6 +728,10 @@ public class UsersResource {
             throw new BadRequestException("Resetting to N old passwords is not allowed.");
         } catch (ModelReadOnlyException mre) {
             throw new BadRequestException("Can't reset password as account is read only");
+        } catch (ModelException e) {
+            Properties messages = AdminRoot.getMessages(session, realm, auth.getAuth().getToken().getLocale());
+            throw new ErrorResponseException(e.getMessage(), MessageFormat.format(messages.getProperty(e.getMessage(), e.getMessage()), e.getParameters()),
+                    Status.BAD_REQUEST);
         }
         if (pass.isTemporary() != null && pass.isTemporary()) user.addRequiredAction(UserModel.RequiredAction.UPDATE_PASSWORD);
 
@@ -807,7 +837,7 @@ public class UsersResource {
 
             return Response.ok().build();
         } catch (EmailException e) {
-            logger.error("Failed to send execute actions email", e);
+            logger.failedToSendActionsEmail(e);
             return ErrorResponse.error("Failed to send execute actions email", Response.Status.INTERNAL_SERVER_ERROR);
         }
     }

@@ -1,23 +1,18 @@
 /*
- * JBoss, Home of Professional Open Source.
- * Copyright 2012, Red Hat, Inc., and individual contributors
- * as indicated by the @author tags. See the copyright.txt file in the
- * distribution for a full listing of individual contributors.
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
  *
- * This is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of
- * the License, or (at your option) any later version.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * This software is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this software; if not, write to the Free
- * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
- * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package org.keycloak.testsuite.adapter;
 
@@ -64,6 +59,7 @@ import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.keycloak.representations.idm.UserRepresentation;
 
 /**
  * Tests Undertow Adapter
@@ -143,6 +139,12 @@ public class AdapterTestStrategy extends ExternalResource {
         String pageSource = driver.getPageSource();
         System.out.println(pageSource);
         Assert.assertTrue(pageSource.contains("parameter=hello"));
+        // test that user principal and KeycloakSecurityContext available
+        driver.navigate().to(APP_SERVER_BASE_URL + "/input-portal/insecure");
+        System.out.println("insecure: ");
+        System.out.println(driver.getPageSource());
+        Assert.assertTrue(driver.getPageSource().contains("Insecure Page"));
+        if (System.getProperty("insecure.user.principal.unsupported") == null) Assert.assertTrue(driver.getPageSource().contains("UserPrincipal"));
 
         // test logout
 
@@ -489,7 +491,9 @@ public class AdapterTestStrategy extends ExternalResource {
         String logoutUri = OIDCLoginProtocolService.logoutUrl(UriBuilder.fromUri(AUTH_SERVER_URL))
                 .queryParam(OAuth2Constants.REDIRECT_URI, APP_SERVER_BASE_URL + "/secure-portal").build("demo").toString();
         driver.navigate().to(logoutUri);
-        Assert.assertTrue(driver.getCurrentUrl().startsWith(LOGIN_URL));
+        String currentUrl = driver.getCurrentUrl();
+        pageSource = driver.getPageSource();
+        Assert.assertTrue(currentUrl.startsWith(LOGIN_URL));
         driver.navigate().to(APP_SERVER_BASE_URL + "/secure-portal");
         Assert.assertTrue(driver.getCurrentUrl().startsWith(LOGIN_URL));
     }
@@ -595,7 +599,8 @@ public class AdapterTestStrategy extends ExternalResource {
 
         // logout mposolda with admin client
         Keycloak keycloakAdmin = Keycloak.getInstance(AUTH_SERVER_URL, "master", "admin", "admin", Constants.ADMIN_CLI_CLIENT_ID);
-        ApiUtil.findClientByClientId(keycloakAdmin.realm("demo"), "session-portal").logoutUser("mposolda");
+        UserRepresentation mposolda = keycloakAdmin.realm("demo").users().search("mposolda", null, null, null, null, null).get(0);
+        keycloakAdmin.realm("demo").users().get(mposolda.getId()).logout();
 
         // bburke should be still logged with original httpSession in our browser window
         driver.navigate().to(APP_SERVER_BASE_URL + "/session-portal");

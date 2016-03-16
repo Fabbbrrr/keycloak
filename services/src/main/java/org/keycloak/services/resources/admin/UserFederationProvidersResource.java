@@ -1,16 +1,33 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.keycloak.services.resources.admin;
 
-import org.jboss.logging.Logger;
 import org.jboss.resteasy.annotations.cache.NoCache;
 import org.jboss.resteasy.spi.NotFoundException;
 import org.jboss.resteasy.spi.ResteasyProviderFactory;
 import org.keycloak.common.constants.KerberosConstants;
 import org.keycloak.events.admin.OperationType;
+import org.keycloak.mappers.FederationConfigValidationException;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserFederationProvider;
 import org.keycloak.models.UserFederationProviderFactory;
 import org.keycloak.models.UserFederationProviderModel;
+import org.keycloak.models.UserFederationValidatingProviderFactory;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.models.utils.ModelToRepresentation;
 import org.keycloak.provider.ConfiguredProvider;
@@ -20,6 +37,9 @@ import org.keycloak.representations.idm.ConfigPropertyRepresentation;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.UserFederationProviderFactoryRepresentation;
 import org.keycloak.representations.idm.UserFederationProviderRepresentation;
+import org.keycloak.services.ErrorResponse;
+import org.keycloak.services.ErrorResponseException;
+import org.keycloak.services.ServicesLogger;
 import org.keycloak.services.managers.UsersSyncManager;
 import org.keycloak.timer.TimerProvider;
 import org.keycloak.utils.CredentialHelper;
@@ -35,9 +55,11 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriInfo;
 
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Properties;
 
 /**
  * Base resource for managing users
@@ -46,12 +68,12 @@ import java.util.List;
  * @version $Revision: 1 $
  */
 public class UserFederationProvidersResource {
-    protected static final Logger logger = Logger.getLogger(UserFederationProvidersResource.class);
+    protected static final ServicesLogger logger = ServicesLogger.ROOT_LOGGER;
 
     protected RealmModel realm;
 
     protected  RealmAuth auth;
-    
+
     protected AdminEventBuilder adminEvent;
 
     @Context
@@ -64,7 +86,7 @@ public class UserFederationProvidersResource {
         this.auth = auth;
         this.realm = realm;
         this.adminEvent = adminEvent;
-        
+
         auth.init(RealmAuth.Resource.USER);
     }
 
@@ -83,6 +105,20 @@ public class UserFederationProvidersResource {
         }
 
         return false;
+    }
+
+    public static void validateFederationProviderConfig(KeycloakSession session, RealmAuth auth, RealmModel realm, UserFederationProviderModel model) {
+        UserFederationProviderFactory providerFactory = KeycloakModelUtils.getFederationProviderFactory(session, model);
+        if (providerFactory instanceof UserFederationValidatingProviderFactory) {
+            try {
+                ((UserFederationValidatingProviderFactory) providerFactory).validateConfig(realm, model);
+            } catch (FederationConfigValidationException fcve) {
+                logger.error(fcve.getMessage());
+                Properties messages = AdminRoot.getMessages(session, realm, auth.getAuth().getToken().getLocale());
+                throw new ErrorResponseException(fcve.getMessage(), MessageFormat.format(messages.getProperty(fcve.getMessage(), fcve.getMessage()), fcve.getParameters()),
+                        Response.Status.BAD_REQUEST);
+            }
+        }
     }
 
     /**
@@ -160,15 +196,19 @@ public class UserFederationProvidersResource {
         if (displayName != null && displayName.trim().equals("")) {
             displayName = null;
         }
+
+        UserFederationProviderModel tempModel = new UserFederationProviderModel(null, rep.getProviderName(), rep.getConfig(), rep.getPriority(), displayName, rep.getFullSyncPeriod(), rep.getChangedSyncPeriod(), rep.getLastSync());
+        validateFederationProviderConfig(session, auth, realm, tempModel);
+
         UserFederationProviderModel model = realm.addUserFederationProvider(rep.getProviderName(), rep.getConfig(), rep.getPriority(), displayName,
                 rep.getFullSyncPeriod(), rep.getChangedSyncPeriod(), rep.getLastSync());
-        new UsersSyncManager().refreshPeriodicSyncForProvider(session.getKeycloakSessionFactory(), session.getProvider(TimerProvider.class), model, realm.getId());
+        new UsersSyncManager().notifyToRefreshPeriodicSync(session, realm, model, false);
         boolean kerberosCredsAdded = checkKerberosCredential(session, realm, model);
         if (kerberosCredsAdded) {
-            logger.info("Added 'kerberos' to required realm credentials");
+            logger.addedKerberosToRealmCredentials();
         }
 
-        
+
         adminEvent.operation(OperationType.CREATE).resourcePath(uriInfo).representation(rep).success();
 
         return Response.created(uriInfo.getAbsolutePathBuilder().path(model.getId()).build()).build();

@@ -1,3 +1,20 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.keycloak.services.resources.admin;
 
 import org.jboss.resteasy.annotations.cache.NoCache;
@@ -5,11 +22,13 @@ import org.jboss.resteasy.plugins.providers.multipart.InputPart;
 import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.jboss.resteasy.spi.NotAcceptableException;
 import org.jboss.resteasy.spi.NotFoundException;
+import org.keycloak.common.util.StreamUtil;
 import org.keycloak.events.admin.OperationType;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.utils.KeycloakModelUtils;
+import org.keycloak.representations.KeyStoreConfig;
 import org.keycloak.representations.idm.CertificateRepresentation;
 import org.keycloak.services.ErrorResponseException;
 import org.keycloak.common.util.PemUtils;
@@ -39,7 +58,7 @@ import java.util.Map;
  * @version $Revision: 1 $
  */
 public class ClientAttributeCertificateResource {
-    
+
     public static final String PRIVATE_KEY = "private.key";
     public static final String X509CERTIFICATE = "certificate";
 
@@ -94,7 +113,7 @@ public class ClientAttributeCertificateResource {
 
         client.setAttribute(privateAttribute, info.getPrivateKey());
         client.setAttribute(certificateAttribute, info.getCertificate());
-        
+
         adminEvent.operation(OperationType.ACTION).resourcePath(session.getContext().getUri()).representation(info).success();
 
         return info;
@@ -158,10 +177,19 @@ public class ClientAttributeCertificateResource {
 
     private CertificateRepresentation getCertFromRequest(UriInfo uriInfo, MultipartFormDataInput input) throws IOException {
         auth.requireManage();
+        CertificateRepresentation info = new CertificateRepresentation();
         Map<String, List<InputPart>> uploadForm = input.getFormDataMap();
-        List<InputPart> inputParts = uploadForm.get("file");
-
         String keystoreFormat = uploadForm.get("keystoreFormat").get(0).getBodyAsString();
+        List<InputPart> inputParts = uploadForm.get("file");
+        if (keystoreFormat.equals("Certificate PEM")) {
+            String pem = StreamUtil.readString(inputParts.get(0).getBody(InputStream.class, null));
+            info.setCertificate(pem);
+            return info;
+
+        }
+
+
+
         String keyAlias = uploadForm.get("keyAlias").get(0).getBodyAsString();
         List<InputPart> keyPasswordPart = uploadForm.get("keyPassword");
         char[] keyPassword = keyPasswordPart != null ? keyPasswordPart.get(0).getBodyAsString().toCharArray() : null;
@@ -185,7 +213,6 @@ public class ClientAttributeCertificateResource {
             throw new RuntimeException(e);
         }
 
-        CertificateRepresentation info = new CertificateRepresentation();
         if (privateKey != null) {
             String privateKeyPem = KeycloakModelUtils.getPemFromKey(privateKey);
             info.setPrivateKey(privateKeyPem);
@@ -197,64 +224,6 @@ public class ClientAttributeCertificateResource {
         }
 
         return info;
-    }
-
-
-    public static class KeyStoreConfig {
-        protected Boolean realmCertificate;
-        protected String storePassword;
-        protected String keyPassword;
-        protected String keyAlias;
-        protected String realmAlias;
-        protected String format;
-
-        public Boolean isRealmCertificate() {
-            return realmCertificate;
-        }
-
-        public void setRealmCertificate(Boolean realmCertificate) {
-            this.realmCertificate = realmCertificate;
-        }
-
-        public String getStorePassword() {
-            return storePassword;
-        }
-
-        public void setStorePassword(String storePassword) {
-            this.storePassword = storePassword;
-        }
-
-        public String getKeyPassword() {
-            return keyPassword;
-        }
-
-        public void setKeyPassword(String keyPassword) {
-            this.keyPassword = keyPassword;
-        }
-
-        public String getKeyAlias() {
-            return keyAlias;
-        }
-
-        public void setKeyAlias(String keyAlias) {
-            this.keyAlias = keyAlias;
-        }
-
-        public String getRealmAlias() {
-            return realmAlias;
-        }
-
-        public void setRealmAlias(String realmAlias) {
-            this.realmAlias = realmAlias;
-        }
-
-        public String getFormat() {
-            return format;
-        }
-
-        public void setFormat(String format) {
-            this.format = format;
-        }
     }
 
     /**

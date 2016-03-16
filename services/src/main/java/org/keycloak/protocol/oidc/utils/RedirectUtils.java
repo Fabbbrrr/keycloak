@@ -1,10 +1,27 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.keycloak.protocol.oidc.utils;
 
-import org.jboss.logging.Logger;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.Constants;
 import org.keycloak.models.RealmModel;
 import org.keycloak.services.Urls;
+import org.keycloak.services.ServicesLogger;
 
 import javax.ws.rs.core.UriInfo;
 import java.net.URI;
@@ -16,7 +33,7 @@ import java.util.Set;
  */
 public class RedirectUtils {
 
-    private static final Logger logger = Logger.getLogger(RedirectUtils.class);
+    private static final ServicesLogger logger = ServicesLogger.ROOT_LOGGER;
 
     public static String verifyRealmRedirectUri(UriInfo uriInfo, String redirectUri, RealmModel realm) {
         Set<String> validRedirects = getValidateRedirectUris(uriInfo, realm);
@@ -63,6 +80,8 @@ public class RedirectUtils {
             logger.debug("No Redirect URIs supplied");
             redirectUri = null;
         } else {
+            redirectUri = lowerCaseHostname(redirectUri);
+
             String r = redirectUri.indexOf('?') != -1 ? redirectUri.substring(0, redirectUri.indexOf('?')) : redirectUri;
             Set<String> resolveValidRedirects = resolveValidRedirects(uriInfo, rootUrl, validRedirects);
 
@@ -96,8 +115,17 @@ public class RedirectUtils {
         }
     }
 
+    private static String lowerCaseHostname(String redirectUri) {
+        int n = redirectUri.indexOf('/', 7);
+        if (n == -1) {
+            return redirectUri.toLowerCase();
+        } else {
+            return redirectUri.substring(0, n).toLowerCase() + redirectUri.substring(n);
+        }
+    }
+
     private static String relativeToAbsoluteURI(UriInfo uriInfo, String rootUrl, String relative) {
-        if (rootUrl == null) {
+        if (rootUrl == null || rootUrl.isEmpty()) {
             URI baseUri = uriInfo.getBaseUri();
             String uri = baseUri.getScheme() + "://" + baseUri.getHost();
             if (baseUri.getPort() != -1) {

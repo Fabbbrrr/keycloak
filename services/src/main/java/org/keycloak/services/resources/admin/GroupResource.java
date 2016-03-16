@@ -1,9 +1,25 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.keycloak.services.resources.admin;
 
-import org.jboss.logging.Logger;
 import org.jboss.resteasy.annotations.cache.NoCache;
 import org.jboss.resteasy.spi.NotFoundException;
 import org.jboss.resteasy.spi.ResteasyProviderFactory;
+import org.keycloak.events.admin.OperationType;
 import org.keycloak.models.GroupModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
@@ -18,17 +34,14 @@ import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -38,8 +51,6 @@ import java.util.Set;
  * @author Bill Burke
  */
 public class GroupResource {
-
-    private static Logger logger = Logger.getLogger(GroupResource.class);
 
     private final RealmModel realm;
     private final KeycloakSession session;
@@ -78,14 +89,18 @@ public class GroupResource {
     @PUT
     @Consumes(MediaType.APPLICATION_JSON)
     public void updateGroup(GroupRepresentation rep) {
+        this.auth.requireManage();
         updateGroup(rep, group);
+        adminEvent.operation(OperationType.UPDATE).resourcePath(uriInfo).representation(rep).success();
 
 
     }
 
     @DELETE
     public void deleteGroup() {
+        this.auth.requireManage();
         realm.removeGroup(group);
+        adminEvent.operation(OperationType.DELETE).resourcePath(uriInfo).success();
     }
 
 
@@ -101,6 +116,7 @@ public class GroupResource {
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes(MediaType.APPLICATION_JSON)
     public Response addChild(GroupRepresentation rep) {
+        this.auth.requireManage();
         Response.ResponseBuilder builder = Response.status(204);
         GroupModel child = null;
         if (rep.getId() != null) {
@@ -108,6 +124,7 @@ public class GroupResource {
             if (child == null) {
                 throw new NotFoundException("Could not find child by id");
             }
+            adminEvent.operation(OperationType.CREATE).resourcePath(uriInfo).representation(rep).success();
         } else {
             child = realm.createGroup(rep.getName());
             updateGroup(rep, child);
@@ -115,6 +132,7 @@ public class GroupResource {
                                            .path(uriInfo.getMatchedURIs().get(1))
                                            .path(child.getId()).build();
             builder.status(201).location(uri);
+            adminEvent.operation(OperationType.UPDATE).resourcePath(uriInfo).representation(rep).success();
 
         }
         realm.moveGroup(child, group);

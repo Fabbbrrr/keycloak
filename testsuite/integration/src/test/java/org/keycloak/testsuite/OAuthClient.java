@@ -1,27 +1,23 @@
 /*
- * JBoss, Home of Professional Open Source.
- * Copyright 2012, Red Hat, Inc., and individual contributors
- * as indicated by the @author tags. See the copyright.txt file in the
- * distribution for a full listing of individual contributors.
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
  *
- * This is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of
- * the License, or (at your option) any later version.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * This software is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this software; if not, write to the Free
- * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
- * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package org.keycloak.testsuite;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
@@ -160,8 +156,57 @@ public class OAuthClient {
         }
     }
 
+    public String introspectAccessTokenWithClientCredential(String clientId, String clientSecret, String tokenToIntrospect) {
+        return introspectTokenWithClientCredential(clientId, clientSecret, "access_token", tokenToIntrospect);
+    }
+
+    public String introspectRefreshTokenWithClientCredential(String clientId, String clientSecret, String tokenToIntrospect) {
+        return introspectTokenWithClientCredential(clientId, clientSecret, "refresh_token", tokenToIntrospect);
+    }
+
+    public String introspectTokenWithClientCredential(String clientId, String clientSecret, String tokenType, String tokenToIntrospect) {
+        CloseableHttpClient client = new DefaultHttpClient();
+        try {
+            HttpPost post = new HttpPost(getTokenIntrospectionUrl());
+
+            String authorization = BasicAuthHelper.createHeader(clientId, clientSecret);
+            post.setHeader("Authorization", authorization);
+
+            List<NameValuePair> parameters = new LinkedList<>();
+
+            parameters.add(new BasicNameValuePair("token", tokenToIntrospect));
+            parameters.add(new BasicNameValuePair("token_type_hint", tokenType));
+
+            UrlEncodedFormEntity formEntity;
+
+            try {
+                formEntity = new UrlEncodedFormEntity(parameters, "UTF-8");
+            } catch (UnsupportedEncodingException e) {
+                throw new RuntimeException(e);
+            }
+
+            post.setEntity(formEntity);
+
+            try {
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+                client.execute(post).getEntity().writeTo(out);
+
+                return new String(out.toByteArray());
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to retrieve access token", e);
+            }
+        } finally {
+            closeClient(client);
+        }
+    }
+
     public AccessTokenResponse doGrantAccessTokenRequest(String clientSecret, String username,  String password) throws Exception {
         return doGrantAccessTokenRequest(realm, username, password, null, clientId, clientSecret);
+    }
+
+    public AccessTokenResponse doGrantAccessTokenRequest(String clientSecret, String username,  String password, String otp) throws Exception {
+        return doGrantAccessTokenRequest(realm, username, password, otp, clientId, clientSecret);
     }
 
     public AccessTokenResponse doGrantAccessTokenRequest(String realm, String username, String password, String totp,
@@ -405,6 +450,11 @@ public class OAuthClient {
 
     public String getAccessTokenUrl() {
         UriBuilder b = OIDCLoginProtocolService.tokenUrl(UriBuilder.fromUri(baseUrl));
+        return b.build(realm).toString();
+    }
+
+    public String getTokenIntrospectionUrl() {
+        UriBuilder b = OIDCLoginProtocolService.tokenIntrospectionUrl(UriBuilder.fromUri(baseUrl));
         return b.build(realm).toString();
     }
 

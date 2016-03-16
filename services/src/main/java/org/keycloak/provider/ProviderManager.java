@@ -1,8 +1,25 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.keycloak.provider;
 
-import org.jboss.logging.Logger;
+import org.keycloak.services.ServicesLogger;
 
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -13,7 +30,7 @@ import java.util.ServiceLoader;
  */
 public class ProviderManager {
 
-    private static final Logger log = Logger.getLogger(ProviderManager.class);
+    private static final ServicesLogger logger = ServicesLogger.ROOT_LOGGER;
 
     private List<ProviderLoader> loaders = new LinkedList<ProviderLoader>();
     private Map<String, List<ProviderFactory>> cache = new HashMap<String, List<ProviderFactory>>();
@@ -24,7 +41,7 @@ public class ProviderManager {
             factories.add(f);
         }
 
-        log.debugv("Provider loaders {0}", factories);
+        logger.debugv("Provider loaders {0}", factories);
 
         loaders.add(new DefaultProviderLoader(baseClassLoader));
 
@@ -52,10 +69,17 @@ public class ProviderManager {
         List<ProviderFactory> factories = cache.get(spi.getName());
         if (factories == null) {
             factories = new LinkedList<ProviderFactory>();
+            IdentityHashMap factoryClasses = new IdentityHashMap();
             for (ProviderLoader loader : loaders) {
                 List<ProviderFactory> f = loader.load(spi);
                 if (f != null) {
-                    factories.addAll(f);
+                    for (ProviderFactory pf: f) {
+                        // make sure there are no duplicates
+                        if (!factoryClasses.containsKey(pf.getClass())) {
+                            factories.add(pf);
+                            factoryClasses.put(pf.getClass(), pf);
+                        }
+                    }
                 }
             }
         }

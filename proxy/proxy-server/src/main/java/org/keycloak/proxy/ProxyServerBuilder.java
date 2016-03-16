@@ -1,5 +1,23 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.keycloak.proxy;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.undertow.Undertow;
 import io.undertow.security.api.AuthenticationMechanism;
 import io.undertow.security.api.AuthenticationMode;
@@ -19,8 +37,7 @@ import io.undertow.server.session.InMemorySessionManager;
 import io.undertow.server.session.SessionAttachmentHandler;
 import io.undertow.server.session.SessionCookieConfig;
 import io.undertow.server.session.SessionManager;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.map.annotate.JsonSerialize;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jboss.logging.Logger;
 import org.keycloak.adapters.AdapterDeploymentContext;
 import org.keycloak.common.util.FindFile;
@@ -334,7 +351,7 @@ public class ProxyServerBuilder {
 
     public static ProxyConfig loadConfig(InputStream is) {
         ObjectMapper mapper = new ObjectMapper(new SystemPropertiesJsonParserFactory());
-        mapper.setSerializationInclusion(JsonSerialize.Inclusion.NON_DEFAULT);
+        mapper.setSerializationInclusion(JsonInclude.Include.NON_DEFAULT);
         ProxyConfig proxyConfig;
         try {
             proxyConfig = mapper.readValue(is, ProxyConfig.class);

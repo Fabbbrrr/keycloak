@@ -1,42 +1,36 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.keycloak.models.jpa;
 
 import org.keycloak.common.util.MultivaluedHashMap;
-import org.keycloak.common.util.Time;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.GroupModel;
-import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.ModelDuplicateException;
-import org.keycloak.models.ModelException;
-import org.keycloak.models.OTPPolicy;
-import org.keycloak.models.PasswordPolicy;
-import org.keycloak.models.ProtocolMapperModel;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RoleContainerModel;
 import org.keycloak.models.RoleModel;
-import org.keycloak.models.UserConsentModel;
-import org.keycloak.models.UserCredentialModel;
-import org.keycloak.models.UserCredentialValueModel;
-import org.keycloak.models.UserModel;
-import org.keycloak.models.jpa.entities.CredentialEntity;
 import org.keycloak.models.jpa.entities.GroupAttributeEntity;
 import org.keycloak.models.jpa.entities.GroupEntity;
 import org.keycloak.models.jpa.entities.GroupRoleMappingEntity;
-import org.keycloak.models.jpa.entities.RoleEntity;
-import org.keycloak.models.jpa.entities.UserAttributeEntity;
-import org.keycloak.models.jpa.entities.UserConsentEntity;
-import org.keycloak.models.jpa.entities.UserConsentProtocolMapperEntity;
-import org.keycloak.models.jpa.entities.UserConsentRoleEntity;
-import org.keycloak.models.jpa.entities.UserEntity;
-import org.keycloak.models.jpa.entities.UserRequiredActionEntity;
-import org.keycloak.models.jpa.entities.UserRoleMappingEntity;
 import org.keycloak.models.utils.KeycloakModelUtils;
 
 import javax.persistence.EntityManager;
 import javax.persistence.TypedQuery;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -47,7 +41,7 @@ import java.util.Set;
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
  * @version $Revision: 1 $
  */
-public class GroupAdapter implements GroupModel {
+public class GroupAdapter implements GroupModel , JpaModel<GroupEntity> {
 
     protected GroupEntity group;
     protected EntityManager em;
@@ -59,7 +53,7 @@ public class GroupAdapter implements GroupModel {
         this.realm = realm;
     }
 
-    public GroupEntity getGroup() {
+    public GroupEntity getEntity() {
         return group;
     }
 
@@ -94,7 +88,7 @@ public class GroupAdapter implements GroupModel {
 
     public static GroupEntity toEntity(GroupModel model, EntityManager em) {
         if (model instanceof GroupAdapter) {
-            return ((GroupAdapter)model).getGroup();
+            return ((GroupAdapter)model).getEntity();
         }
         return em.getReference(GroupEntity.class, model.getId());
     }
@@ -239,7 +233,7 @@ public class GroupAdapter implements GroupModel {
 
     protected TypedQuery<GroupRoleMappingEntity> getGroupRoleMappingEntityTypedQuery(RoleModel role) {
         TypedQuery<GroupRoleMappingEntity> query = em.createNamedQuery("groupHasRole", GroupRoleMappingEntity.class);
-        query.setParameter("group", getGroup());
+        query.setParameter("group", getEntity());
         query.setParameter("roleId", role.getId());
         return query;
     }
@@ -248,7 +242,7 @@ public class GroupAdapter implements GroupModel {
     public void grantRole(RoleModel role) {
         if (hasRole(role)) return;
         GroupRoleMappingEntity entity = new GroupRoleMappingEntity();
-        entity.setGroup(getGroup());
+        entity.setGroup(getEntity());
         entity.setRoleId(role.getId());
         em.persist(entity);
         em.flush();
@@ -275,7 +269,7 @@ public class GroupAdapter implements GroupModel {
         // we query ids only as the role might be cached and following the @ManyToOne will result in a load
         // even if we're getting just the id.
         TypedQuery<String> query = em.createNamedQuery("groupRoleMappingIds", String.class);
-        query.setParameter("group", getGroup());
+        query.setParameter("group", getEntity());
         List<String> ids = query.getResultList();
         Set<RoleModel> roles = new HashSet<RoleModel>();
         for (String roleId : ids) {

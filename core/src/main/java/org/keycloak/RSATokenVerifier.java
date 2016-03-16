@@ -1,3 +1,20 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.keycloak;
 
 import org.keycloak.common.VerificationException;
@@ -7,7 +24,6 @@ import org.keycloak.jose.jws.crypto.RSAProvider;
 import org.keycloak.representations.AccessToken;
 import org.keycloak.util.TokenUtil;
 
-import java.io.IOException;
 import java.security.PublicKey;
 
 /**
@@ -20,20 +36,8 @@ public class RSATokenVerifier {
     }
 
     public static AccessToken verifyToken(String tokenString, PublicKey realmKey, String realmUrl, boolean checkActive, boolean checkTokenType) throws VerificationException {
-        JWSInput input = null;
-        try {
-            input = new JWSInput(tokenString);
-        } catch (JWSInputException e) {
-            throw new VerificationException("Couldn't parse token", e);
-        }
-        if (!isPublicKeyValid(input, realmKey)) throw new VerificationException("Invalid token signature.");
+        AccessToken token = toAccessToken(tokenString, realmKey);
 
-        AccessToken token;
-        try {
-            token = input.readJsonContent(AccessToken.class);
-        } catch (JWSInputException e) {
-            throw new VerificationException("Couldn't parse token signature", e);
-        }
         String user = token.getSubject();
         if (user == null) {
             throw new VerificationException("Token user was null.");
@@ -56,6 +60,24 @@ public class RSATokenVerifier {
             throw new VerificationException("Token is not active.");
         }
 
+        return token;
+    }
+
+    public static AccessToken toAccessToken(String tokenString, PublicKey realmKey) throws VerificationException {
+        JWSInput input;
+        try {
+            input = new JWSInput(tokenString);
+        } catch (JWSInputException e) {
+            throw new VerificationException("Couldn't parse token", e);
+        }
+        if (!isPublicKeyValid(input, realmKey)) throw new VerificationException("Invalid token signature.");
+
+        AccessToken token;
+        try {
+            token = input.readJsonContent(AccessToken.class);
+        } catch (JWSInputException e) {
+            throw new VerificationException("Couldn't parse token signature", e);
+        }
         return token;
     }
 

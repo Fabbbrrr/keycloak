@@ -1,18 +1,34 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.keycloak.services.resources;
 
-import org.jboss.logging.Logger;
 import org.jboss.resteasy.spi.BadRequestException;
 import org.jboss.resteasy.spi.HttpRequest;
 import org.keycloak.AbstractOAuthClient;
 import org.keycloak.common.ClientConnection;
 import org.keycloak.OAuth2Constants;
-import org.keycloak.common.util.Base64Url;
+import org.keycloak.common.util.KeycloakUriBuilder;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.protocol.oidc.OIDCLoginProtocolService;
 import org.keycloak.services.ForbiddenException;
+import org.keycloak.services.ServicesLogger;
 import org.keycloak.services.managers.AppAuthManager;
 import org.keycloak.services.managers.Auth;
 import org.keycloak.services.managers.AuthenticationManager;
@@ -32,7 +48,6 @@ import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
 import java.net.URI;
 import java.util.Set;
-import java.util.UUID;
 
 /**
  * Helper class for securing local services.  Provides login basics as well as CSRF check basics
@@ -41,7 +56,7 @@ import java.util.UUID;
  * @version $Revision: 1 $
  */
 public abstract class AbstractSecuredLocalService {
-    private static final Logger logger = Logger.getLogger(AbstractSecuredLocalService.class);
+    private static final ServicesLogger logger = ServicesLogger.ROOT_LOGGER;
 
     private static final String KEYCLOAK_STATE_CHECKER = "KEYCLOAK_STATE_CHECKER";
 
@@ -99,13 +114,15 @@ public abstract class AbstractSecuredLocalService {
                 throw new BadRequestException("state not specified");
             }
 
-            URI uri = getBaseRedirectUri();
-            URI redirectUri = path != null ? uri.resolve(path) : uri;
+            KeycloakUriBuilder redirect = KeycloakUriBuilder.fromUri(getBaseRedirectUri());
+            if (path != null) {
+                redirect.path(path);
+            }
             if (referrer != null) {
-                redirectUri = redirectUri.resolve("?referrer=" + referrer);
+                redirect.queryParam("referrer", referrer);
             }
 
-            return Response.status(302).location(redirectUri).build();
+            return Response.status(302).location(redirect.build()).build();
         } finally {
         }
     }
@@ -159,6 +176,8 @@ public abstract class AbstractSecuredLocalService {
         oauth.setAuthUrl(authUrl);
 
         oauth.setClientId(client.getClientId());
+
+        oauth.setSecure(realm.getSslRequired().isRequired(clientConnection));
 
         UriBuilder uriBuilder = UriBuilder.fromUri(getBaseRedirectUri()).path("login-redirect");
 
@@ -230,8 +249,7 @@ public abstract class AbstractSecuredLocalService {
 
             URI url = uriBuilder.build();
 
-            // todo httpOnly!
-            NewCookie cookie = new NewCookie(getStateCookieName(), state, getStateCookiePath(uriInfo), null, null, -1, isSecure);
+            NewCookie cookie = new NewCookie(getStateCookieName(), state, getStateCookiePath(uriInfo), null, null, -1, isSecure, true);
             logger.debug("NewCookie: " + cookie.toString());
             logger.debug("Oauth Redirect to: " + url);
             return Response.status(302)

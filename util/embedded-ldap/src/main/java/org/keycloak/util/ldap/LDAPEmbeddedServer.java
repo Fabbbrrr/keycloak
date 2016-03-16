@@ -1,3 +1,20 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.keycloak.util.ldap;
 
 import java.io.File;
@@ -43,6 +60,9 @@ public class LDAPEmbeddedServer {
     private static final String DEFAULT_BIND_HOST = "localhost";
     private static final String DEFAULT_BIND_PORT = "10389";
     private static final String DEFAULT_LDIF_FILE = "classpath:ldap/default-users.ldif";
+    private static final String PROPERTY_ENABLE_SSL = "enableSSL";
+    private static final String PROPERTY_KEYSTORE_FILE = "keystoreFile";
+    private static final String PROPERTY_CERTIFICATE_PASSWORD = "certificatePassword";
 
     public static final String DSF_INMEMORY = "mem";
     public static final String DSF_FILE = "file";
@@ -56,6 +76,9 @@ public class LDAPEmbeddedServer {
     protected String ldifFile;
     protected String ldapSaslPrincipal;
     protected String directoryServiceFactory;
+    protected boolean enableSSL = false;
+    protected String keystoreFile;
+    protected String certPassword;
 
     protected DirectoryService directoryService;
     protected LdapServer ldapServer;
@@ -97,6 +120,9 @@ public class LDAPEmbeddedServer {
         this.ldifFile = readProperty(PROPERTY_LDIF_FILE, DEFAULT_LDIF_FILE);
         this.ldapSaslPrincipal = readProperty(PROPERTY_SASL_PRINCIPAL, null);
         this.directoryServiceFactory = readProperty(PROPERTY_DSF, DEFAULT_DSF);
+        this.enableSSL = Boolean.valueOf(readProperty(PROPERTY_ENABLE_SSL, "false"));
+        this.keystoreFile = readProperty(PROPERTY_KEYSTORE_FILE, null);
+        this.certPassword = readProperty(PROPERTY_CERTIFICATE_PASSWORD, null);
     }
 
     protected String readProperty(String propertyName, String defaultValue) {
@@ -194,6 +220,11 @@ public class LDAPEmbeddedServer {
 
         // Read the transports
         Transport ldap = new TcpTransport(this.bindHost, this.bindPort, 3, 50);
+        if (enableSSL) {
+            ldap.setEnableSSL(true);
+            ldapServer.setKeystoreFile(keystoreFile);
+            ldapServer.setCertificatePassword(certPassword);
+        }
         ldapServer.addTransports( ldap );
 
         // Associate the DS to this LdapServer

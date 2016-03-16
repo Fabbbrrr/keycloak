@@ -1,8 +1,28 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.keycloak.email;
 
-import org.jboss.logging.Logger;
+import org.keycloak.truststore.HostnameVerificationPolicy;
+import org.keycloak.truststore.JSSETruststoreConfigurator;
+import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
+import org.keycloak.services.ServicesLogger;
 
 import javax.mail.Message;
 import javax.mail.Multipart;
@@ -12,6 +32,9 @@ import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeBodyPart;
 import javax.mail.internet.MimeMessage;
 import javax.mail.internet.MimeMultipart;
+import javax.net.ssl.SSLSocketFactory;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
 import java.util.Date;
 import java.util.Map;
 import java.util.Properties;
@@ -21,7 +44,13 @@ import java.util.Properties;
  */
 public class DefaultEmailSenderProvider implements EmailSenderProvider {
 
-    private static final Logger log = Logger.getLogger(DefaultEmailSenderProvider.class);
+    private static final ServicesLogger logger = ServicesLogger.ROOT_LOGGER;
+
+    private final KeycloakSession session;
+
+    public DefaultEmailSenderProvider(KeycloakSession session) {
+        this.session = session;
+    }
 
     @Override
     public void send(RealmModel realm, UserModel user, String subject, String textBody, String htmlBody) throws EmailException {
@@ -50,6 +79,10 @@ public class DefaultEmailSenderProvider implements EmailSenderProvider {
 
             if (starttls) {
                 props.setProperty("mail.smtp.starttls.enable", "true");
+            }
+
+            if (ssl || starttls) {
+                setupTruststore(props);
             }
 
             props.setProperty("mail.smtp.timeout", "10000");
@@ -89,8 +122,21 @@ public class DefaultEmailSenderProvider implements EmailSenderProvider {
             }
             transport.sendMessage(msg, new InternetAddress[]{new InternetAddress(address)});
         } catch (Exception e) {
-            log.error("Failed to send email", e);
+            logger.failedToSendEmail(e);
             throw new EmailException(e);
+        }
+    }
+
+    private void setupTruststore(Properties props) throws NoSuchAlgorithmException, KeyManagementException {
+
+        JSSETruststoreConfigurator configurator = new JSSETruststoreConfigurator(session);
+
+        SSLSocketFactory factory = configurator.getSSLSocketFactory();
+        if (factory != null) {
+            props.put("mail.smtp.ssl.socketFactory", factory);
+            if (configurator.getProvider().getPolicy() == HostnameVerificationPolicy.ANY) {
+                props.setProperty("mail.smtp.ssl.trust", "*");
+            }
         }
     }
 
@@ -98,5 +144,4 @@ public class DefaultEmailSenderProvider implements EmailSenderProvider {
     public void close() {
 
     }
-
 }

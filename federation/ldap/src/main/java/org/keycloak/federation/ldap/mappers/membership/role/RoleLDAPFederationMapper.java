@@ -1,3 +1,20 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.keycloak.federation.ldap.mappers.membership.role;
 
 import java.util.Collection;
@@ -105,9 +122,9 @@ public class RoleLDAPFederationMapper extends AbstractLDAPFederationMapper imple
 
         logger.debugf("Syncing roles from LDAP into Keycloak DB. Mapper is [%s], LDAP provider is [%s]", mapperModel.getName(), ldapProvider.getModel().getDisplayName());
 
-        // Send LDAP query
-        LDAPQuery ldapQuery = createRoleQuery();
-        List<LDAPObject> ldapRoles = ldapQuery.getResultList();
+        // Send LDAP query to load all roles
+        LDAPQuery ldapRoleQuery = createRoleQuery();
+        List<LDAPObject> ldapRoles = LDAPUtils.loadAllLDAPObjects(ldapRoleQuery, ldapProvider);
 
         RoleContainerModel roleContainer = getTargetRoleContainer();
         String rolesRdnAttr = config.getRoleNameLdapAttribute();

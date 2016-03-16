@@ -1,3 +1,20 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.keycloak.federation.ldap.mappers;
 
 import java.util.ArrayList;
@@ -7,10 +24,7 @@ import java.util.Map;
 
 import org.keycloak.federation.ldap.LDAPConfig;
 import org.keycloak.federation.ldap.LDAPFederationProvider;
-import org.keycloak.mappers.MapperConfigValidationException;
-import org.keycloak.mappers.UserFederationMapper;
-import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.LDAPConstants;
+import org.keycloak.mappers.FederationConfigValidationException;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserFederationMapperModel;
 import org.keycloak.models.UserFederationProvider;
@@ -87,7 +101,7 @@ public class UserAttributeLDAPFederationMapperFactory extends AbstractLDAPFedera
     }
 
     @Override
-    public void validateConfig(RealmModel realm, UserFederationMapperModel mapperModel) throws MapperConfigValidationException {
+    public void validateConfig(RealmModel realm, UserFederationProviderModel fedProviderModel, UserFederationMapperModel mapperModel) throws FederationConfigValidationException {
         checkMandatoryConfigAttribute(UserAttributeLDAPFederationMapper.USER_MODEL_ATTRIBUTE, "User Model Attribute", mapperModel);
         checkMandatoryConfigAttribute(UserAttributeLDAPFederationMapper.LDAP_ATTRIBUTE, "LDAP Attribute", mapperModel);
     }

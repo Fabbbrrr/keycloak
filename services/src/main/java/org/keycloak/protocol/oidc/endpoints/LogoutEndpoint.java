@@ -1,6 +1,22 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.keycloak.protocol.oidc.endpoints;
 
-import org.jboss.logging.Logger;
 import org.jboss.resteasy.annotations.cache.NoCache;
 import org.jboss.resteasy.spi.HttpRequest;
 import org.keycloak.common.ClientConnection;
@@ -21,6 +37,7 @@ import org.keycloak.protocol.oidc.utils.RedirectUtils;
 import org.keycloak.representations.IDToken;
 import org.keycloak.representations.RefreshToken;
 import org.keycloak.services.ErrorResponseException;
+import org.keycloak.services.ServicesLogger;
 import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.messages.Messages;
 import org.keycloak.services.resources.Cors;
@@ -43,7 +60,7 @@ import javax.ws.rs.core.UriInfo;
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
  */
 public class LogoutEndpoint {
-    protected static Logger logger = Logger.getLogger(LogoutEndpoint.class);
+    protected static ServicesLogger logger = ServicesLogger.ROOT_LOGGER;
 
     @Context
     private KeycloakSession session;
@@ -61,13 +78,11 @@ public class LogoutEndpoint {
     private UriInfo uriInfo;
 
     private TokenManager tokenManager;
-    private AuthenticationManager authManager;
     private RealmModel realm;
     private EventBuilder event;
 
-    public LogoutEndpoint(TokenManager tokenManager, AuthenticationManager authManager, RealmModel realm, EventBuilder event) {
+    public LogoutEndpoint(TokenManager tokenManager, RealmModel realm, EventBuilder event) {
         this.tokenManager = tokenManager;
-        this.authManager = authManager;
         this.realm = realm;
         this.event = event;
     }
@@ -117,7 +132,7 @@ public class LogoutEndpoint {
         }
 
         // authenticate identity cookie, but ignore an access token timeout as we're logging out anyways.
-        AuthenticationManager.AuthResult authResult = authManager.authenticateIdentityCookie(session, realm, false);
+        AuthenticationManager.AuthResult authResult = AuthenticationManager.authenticateIdentityCookie(session, realm, false);
         if (authResult != null) {
             userSession = userSession != null ? userSession : authResult.getSession();
             if (redirect != null) userSession.setNote(OIDCLoginProtocol.LOGOUT_REDIRECT_URI, redirect);
@@ -129,7 +144,7 @@ public class LogoutEndpoint {
             return response;
         } else if (userSession != null) { // non browser logout
             event.event(EventType.LOGOUT);
-            authManager.backchannelLogout(session, realm, userSession, uriInfo, clientConnection, headers, true);
+            AuthenticationManager.backchannelLogout(session, realm, userSession, uriInfo, clientConnection, headers, true);
             event.user(userSession.getUser()).session(userSession).success();
         }
 
@@ -185,7 +200,7 @@ public class LogoutEndpoint {
     }
 
     private void logout(UserSessionModel userSession) {
-        authManager.backchannelLogout(session, realm, userSession, uriInfo, clientConnection, headers, true);
+        AuthenticationManager.backchannelLogout(session, realm, userSession, uriInfo, clientConnection, headers, true);
         event.user(userSession.getUser()).session(userSession).success();
     }
 

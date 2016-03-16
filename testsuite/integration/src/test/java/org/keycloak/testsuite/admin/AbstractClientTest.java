@@ -1,3 +1,20 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.keycloak.testsuite.admin;
 
 import org.junit.After;
@@ -7,19 +24,13 @@ import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.models.Constants;
 import org.keycloak.models.RealmModel;
-import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.IdentityProviderRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.services.managers.RealmManager;
 import org.keycloak.testsuite.rule.KeycloakRule;
-import org.keycloak.testsuite.rule.WebResource;
-import org.openqa.selenium.WebDriver;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 
 import static org.junit.Assert.assertArrayEquals;
 
@@ -41,32 +52,37 @@ public abstract class AbstractClientTest {
         keycloakRule.configure(new KeycloakRule.KeycloakSetup() {
             @Override
             public void config(RealmManager manager, RealmModel adminstrationRealm, RealmModel appRealm) {
-                RealmModel testRealm = manager.createRealm(REALM_NAME);
-                testRealm.setEnabled(true);
-                testRealm.setAccessCodeLifespanUserAction(600);
-                KeycloakModelUtils.generateRealmKeys(testRealm);
-
                 appRealm.getClientByClientId("test-app").setDirectAccessGrantsEnabled(true);
             }
         });
 
         keycloak = Keycloak.getInstance("http://localhost:8081/auth", "master", "admin", "admin", Constants.ADMIN_CLI_CLIENT_ID);
+
+        RealmRepresentation rep = new RealmRepresentation();
+        rep.setRealm(REALM_NAME);
+        rep.setEnabled(true);
+
+        Map<String, String> config = new HashMap<>();
+        config.put("from", "auto@keycloak.org");
+        config.put("host", "localhost");
+        config.put("port", "3025");
+
+        rep.setSmtpServer(config);
+
+        keycloak.realms().create(rep);
+
         realm = keycloak.realm(REALM_NAME);
     }
 
     @After
     public void after() {
-        keycloak.close();
-
-        keycloakRule.configure(new KeycloakRule.KeycloakSetup() {
-            @Override
-            public void config(RealmManager manager, RealmModel adminstrationRealm, RealmModel appRealm) {
-                RealmModel realm = manager.getRealmByName(REALM_NAME);
-                if (realm != null) {
-                    manager.removeRealm(realm);
-                }
+        for (RealmRepresentation r : keycloak.realms().findAll()) {
+            if (r.getRealm().equals(REALM_NAME)) {
+                keycloak.realm(REALM_NAME).remove();
             }
-        });
+        }
+
+        keycloak.close();
     }
 
     public static <T> void assertNames(List<T> actual, String... expected) {

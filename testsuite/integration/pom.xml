@@ -1,11 +1,27 @@
 <?xml version="1.0"?>
+<!--
+  ~ Copyright 2016 Red Hat, Inc. and/or its affiliates
+  ~ and other contributors as indicated by the @author tags.
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~ http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <parent>
         <artifactId>keycloak-testsuite-pom</artifactId>
         <groupId>org.keycloak</groupId>
-        <version>1.8.0.CR1-SNAPSHOT</version>
-        <relativePath>../pom.xml</relativePath>
+        <version>1.9.2.Final-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -44,8 +60,8 @@
             <artifactId>jboss-servlet-api_3.0_spec</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.jboss.resteasy</groupId>
-            <artifactId>jaxrs-api</artifactId>
+            <groupId>org.jboss.spec.javax.ws.rs</groupId>
+            <artifactId>jboss-jaxrs-api_2.0_spec</artifactId>
         </dependency>
         <dependency>
             <groupId>org.jboss.resteasy</groupId>
@@ -83,7 +99,7 @@
         </dependency>
         <dependency>
             <groupId>org.jboss.resteasy</groupId>
-            <artifactId>resteasy-jackson-provider</artifactId>
+            <artifactId>resteasy-jackson2-provider</artifactId>
         </dependency>
         <dependency>
             <groupId>com.google.zxing</groupId>
@@ -92,6 +108,10 @@
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-server-spi</artifactId>
         </dependency>
         <dependency>
             <groupId>org.keycloak</groupId>
@@ -142,16 +162,16 @@
             <artifactId>undertow-core</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.codehaus.jackson</groupId>
-            <artifactId>jackson-core-asl</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.codehaus.jackson</groupId>
-            <artifactId>jackson-mapper-asl</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.codehaus.jackson</groupId>
-            <artifactId>jackson-xc</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
         </dependency>
         <dependency>
             <groupId>junit</groupId>
@@ -163,7 +183,7 @@
         </dependency>
         <dependency>
             <groupId>org.hibernate.javax.persistence</groupId>
-            <artifactId>${hibernate.javax.persistence.artifactId}</artifactId>
+            <artifactId>hibernate-jpa-2.1-api</artifactId>
         </dependency>
         <dependency>
             <groupId>com.h2database</groupId>
@@ -215,6 +235,16 @@
             <groupId>org.wildfly</groupId>
             <artifactId>wildfly-undertow</artifactId>
             <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>${postgresql.version}</version>
         </dependency>
 
     </dependencies>
@@ -359,6 +389,7 @@
                             <systemPropertyVariables>
                                 <keycloak.realm.provider>jpa</keycloak.realm.provider>
                                 <keycloak.user.provider>jpa</keycloak.user.provider>
+                                <keycloak.userSessionPersister.provider>jpa</keycloak.userSessionPersister.provider>
                                 <keycloak.eventsStore.provider>jpa</keycloak.eventsStore.provider>
 
                                 <keycloak.liquibase.logging.level>debug</keycloak.liquibase.logging.level>
@@ -397,6 +428,7 @@
                                     <systemPropertyVariables>
                                         <keycloak.realm.provider>mongo</keycloak.realm.provider>
                                         <keycloak.user.provider>mongo</keycloak.user.provider>
+                                        <keycloak.userSessionPersister.provider>mongo</keycloak.userSessionPersister.provider>
                                         <keycloak.eventsStore.provider>mongo</keycloak.eventsStore.provider>
                                         <keycloak.connectionsMongo.host>${keycloak.connectionsMongo.host}</keycloak.connectionsMongo.host>
                                         <keycloak.connectionsMongo.port>${keycloak.connectionsMongo.port}</keycloak.connectionsMongo.port>
@@ -446,41 +478,6 @@
 
         </profile>
 
-        <!-- MySQL -->
-        <profile>
-            <activation>
-                <property>
-                    <name>keycloak.connectionsJpa.driver</name>
-                    <value>com.mysql.jdbc.Driver</value>
-                </property>
-            </activation>
-            <id>mysql</id>
-            <dependencies>
-                <dependency>
-                    <groupId>mysql</groupId>
-                    <artifactId>mysql-connector-java</artifactId>
-                </dependency>
-            </dependencies>
-        </profile>
-
-        <!-- PostgreSQL -->
-        <profile>
-            <activation>
-                <property>
-                    <name>keycloak.connectionsJpa.driver</name>
-                    <value>org.postgresql.Driver</value>
-                </property>
-            </activation>
-            <id>postgresql</id>
-            <dependencies>
-                <dependency>
-                    <groupId>org.postgresql</groupId>
-                    <artifactId>postgresql</artifactId>
-                    <version>${postgresql.version}</version>
-                </dependency>
-            </dependencies>
-        </profile>
-
         <profile>
             <id>clean-jpa</id>
             <build>
@@ -497,6 +494,7 @@
                             <password>${keycloak.connectionsJpa.password}</password>
 
                             <promptOnNonLocalDatabase>false</promptOnNonLocalDatabase>
+                            <databaseClass>${keycloak.connectionsJpa.liquibaseDatabaseClass}</databaseClass>
                         </configuration>
                         <executions>
                             <execution>

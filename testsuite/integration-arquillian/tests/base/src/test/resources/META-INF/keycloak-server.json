@@ -26,19 +26,18 @@
         "provider": "${keycloak.userSessionPersister.provider:jpa}"
     },
 
-    "userSessions": {
-        "provider" : "${keycloak.userSessions.provider:infinispan}"
-    },
-
-    "realmCache": {
-        "provider": "${keycloak.realm.cache.provider:infinispan}"
-    },
-
     "userCache": {
-        "provider": "${keycloak.user.cache.provider:infinispan}",
+        "provider": "${keycloak.user.cache.provider:default}",
+        "default" : {
+            "enabled": true
+        },
         "mem": {
             "maxSize": 20000
         }
+    },
+
+    "userSessions": {
+        "provider" : "${keycloak.userSessions.provider:infinispan}"
     },
 
     "timer": {
@@ -46,7 +45,6 @@
     },
 
     "theme": {
-        "default": "keycloak",
         "staticMaxAge": "${keycloak.theme.staticMaxAge:2592000}",
         "cacheTemplates": "${keycloak.theme.cacheTemplates:true}",
         "cacheThemes": "${keycloak.theme.cacheThemes:true}",
@@ -72,9 +70,7 @@
     },
 
     "connectionsHttpClient": {
-        "default": {
-            "disable-trust-manager": true
-        }
+        "default": {}
     },
 
 
@@ -98,6 +94,31 @@
             "db": "${keycloak.connectionsMongo.db:keycloak}",
             "databaseSchema": "${keycloak.connectionsMongo.databaseSchema:update}",
             "connectionsPerHost": "${keycloak.connectionsMongo.connectionsPerHost:100}"
+        }
+    },
+
+    "realmCache": {
+        "provider": "${keycloak.realm.cache.provider:default}",
+        "default" : {
+            "enabled": true
+        }
+    },
+
+    "connectionsInfinispan": {
+        "default": {
+            "clustered": "${keycloak.connectionsInfinispan.clustered:false}",
+            "async": "${keycloak.connectionsInfinispan.async:true}",
+            "sessionsOwners": "${keycloak.connectionsInfinispan.sessionsOwners:2}"
+        }
+    },
+
+
+    "truststore": {
+        "file": {
+            "file": "${keycloak.truststore.file:src/main/keystore/keycloak.truststore}",
+            "password": "${keycloak.truststore.password:secret}",
+            "hostname-verification-policy": "${keycloak.truststore.policy:WILDCARD}",
+            "disabled": "${keycloak.truststore.disabled:true}"
         }
     }
 }

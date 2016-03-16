@@ -1,23 +1,18 @@
 /*
- * JBoss, Home of Professional Open Source.
- * Copyright 2012, Red Hat, Inc., and individual contributors
- * as indicated by the @author tags. See the copyright.txt file in the
- * distribution for a full listing of individual contributors.
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
  *
- * This is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of
- * the License, or (at your option) any later version.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * This software is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this software; if not, write to the Free
- * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
- * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package org.keycloak.testsuite.actions;
 
@@ -32,17 +27,22 @@ import org.keycloak.events.Errors;
 import org.keycloak.events.EventType;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
+import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.services.managers.RealmManager;
 import org.keycloak.testsuite.AssertEvents;
 import org.keycloak.testsuite.pages.AppPage;
 import org.keycloak.testsuite.pages.AppPage.RequestType;
 import org.keycloak.testsuite.pages.LoginPage;
-import org.keycloak.testsuite.pages.LoginUpdateProfilePage;
 import org.keycloak.testsuite.pages.TermsAndConditionsPage;
 import org.keycloak.testsuite.rule.KeycloakRule;
 import org.keycloak.testsuite.rule.WebResource;
 import org.keycloak.testsuite.rule.WebRule;
 import org.openqa.selenium.WebDriver;
+
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.Assert.*;
 
 /**
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
@@ -96,6 +96,23 @@ public class TermsAndConditionsTest {
         Assert.assertEquals(RequestType.AUTH_RESPONSE, appPage.getRequestType());
 
         events.expectLogin().session(sessionId).assertEvent();
+
+        // assert user attribute is properly set
+        UserRepresentation user = keycloakRule.getUser("test", "test-user@localhost");
+        Map<String,List<String>> attributes = user.getAttributesAsListValues();
+        assertNotNull("timestamp for terms acceptance was not stored in user attributes", attributes);
+        List<String> termsAndConditions = attributes.get(TermsAndConditions.USER_ATTRIBUTE);
+        assertTrue("timestamp for terms acceptance was not stored in user attributes as "
+                + TermsAndConditions.USER_ATTRIBUTE, termsAndConditions.size() == 1);
+        String timestamp = termsAndConditions.get(0);
+        assertNotNull("expected non-null timestamp for terms acceptance in user attribute "
+                + TermsAndConditions.USER_ATTRIBUTE, timestamp);
+        try {
+            Integer.parseInt(timestamp);
+        }
+        catch (NumberFormatException e) {
+            fail("timestamp for terms acceptance is not a valid integer: '" + timestamp + "'");
+        }
     }
 
     @Test
@@ -113,6 +130,14 @@ public class TermsAndConditionsTest {
                 .removeDetail(Details.CONSENT)
                 .assertEvent();
 
+
+        // assert user attribute is properly removed
+        UserRepresentation user = keycloakRule.getUser("test", "test-user@localhost");
+        Map<String,List<String>> attributes = user.getAttributesAsListValues();
+        if (attributes != null) {
+            assertNull("expected null for terms acceptance user attribute " + TermsAndConditions.USER_ATTRIBUTE,
+                    attributes.get(TermsAndConditions.USER_ATTRIBUTE));
+        }
     }
 
 

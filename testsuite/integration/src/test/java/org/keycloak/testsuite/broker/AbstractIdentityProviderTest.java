@@ -1,13 +1,12 @@
 /*
- * JBoss, Home of Professional Open Source
- *
- * Copyright 2013 Red Hat, Inc. and/or its affiliates.
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,30 +21,24 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
-import org.junit.Test;
 import org.keycloak.authentication.authenticators.broker.IdpReviewProfileAuthenticatorFactory;
 import org.keycloak.models.AuthenticatorConfigModel;
-import org.keycloak.models.ClientModel;
-import org.keycloak.models.Constants;
 import org.keycloak.models.FederatedIdentityModel;
 import org.keycloak.models.IdentityProviderModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionTask;
 import org.keycloak.models.RealmModel;
-import org.keycloak.models.RoleModel;
 import org.keycloak.models.UserModel;
-import org.keycloak.models.UserModel.RequiredAction;
 import org.keycloak.models.utils.DefaultAuthenticationFlows;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.representations.IDToken;
-import org.keycloak.representations.idm.IdentityProviderRepresentation;
-import org.keycloak.services.Urls;
 import org.keycloak.testsuite.MailUtil;
 import org.keycloak.testsuite.OAuthClient;
 import org.keycloak.testsuite.broker.util.UserSessionStatusServlet;
 import org.keycloak.testsuite.broker.util.UserSessionStatusServlet.UserSessionStatus;
 import org.keycloak.testsuite.pages.AccountFederatedIdentityPage;
 import org.keycloak.testsuite.pages.AccountPasswordPage;
+import org.keycloak.testsuite.pages.AccountUpdateProfilePage;
 import org.keycloak.testsuite.pages.LoginPage;
 import org.keycloak.testsuite.pages.LoginUpdateProfilePage;
 import org.keycloak.testsuite.pages.OAuthGrantPage;
@@ -55,22 +48,11 @@ import org.keycloak.testsuite.rule.LoggingRule;
 import org.keycloak.testsuite.rule.WebResource;
 import org.keycloak.testsuite.rule.WebRule;
 import org.keycloak.util.JsonSerialization;
-import org.openqa.selenium.By;
-import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebElement;
 
 import javax.mail.MessagingException;
 import javax.mail.Multipart;
 import javax.mail.internet.MimeMessage;
-import javax.ws.rs.client.Client;
-import javax.ws.rs.client.ClientBuilder;
-import javax.ws.rs.client.ClientRequestContext;
-import javax.ws.rs.client.ClientRequestFilter;
-import javax.ws.rs.client.WebTarget;
-import javax.ws.rs.core.HttpHeaders;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.UriBuilder;
 
 import java.io.IOException;
@@ -123,6 +105,9 @@ public abstract class AbstractIdentityProviderTest {
     protected OAuthGrantPage grantPage;
 
     @WebResource
+    AccountUpdateProfilePage accountUpdateProfilePage;
+
+    @WebResource
     protected AccountPasswordPage changePasswordPage;
 
     @WebResource
@@ -173,7 +158,7 @@ public abstract class AbstractIdentityProviderTest {
         FederatedIdentityModel federatedIdentityModel = federatedIdentities.iterator().next();
 
         assertEquals(getProviderId(), federatedIdentityModel.getIdentityProvider());
-        assertEquals(federatedUser.getUsername(), federatedIdentityModel.getIdentityProvider() + "." + federatedIdentityModel.getUserName());
+        assertEquals(federatedUser.getUsername(), federatedIdentityModel.getUserName());
 
         driver.navigate().to("http://localhost:8081/test-app/logout");
         driver.navigate().to("http://localhost:8081/test-app");
