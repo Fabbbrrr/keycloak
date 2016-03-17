@@ -40,6 +40,7 @@ import org.keycloak.services.resources.admin.AdminRoot;
 import org.keycloak.services.scheduled.ClearExpiredEvents;
 import org.keycloak.services.scheduled.ClearExpiredUserSessions;
 import org.keycloak.services.scheduled.ClusterAwareScheduledTaskRunner;
+import org.keycloak.services.scheduled.RefreshExpiredTokens;
 import org.keycloak.services.util.JsonConfigProvider;
 import org.keycloak.services.util.ObjectMapperResolver;
 import org.keycloak.timer.TimerProvider;
@@ -232,6 +233,11 @@ public class KeycloakApplication extends Application {
             TimerProvider timer = session.getProvider(TimerProvider.class);
             timer.schedule(new ClusterAwareScheduledTaskRunner(sessionFactory, new ClearExpiredEvents(), interval), interval, "ClearExpiredEvents");
             timer.schedule(new ClusterAwareScheduledTaskRunner(sessionFactory, new ClearExpiredUserSessions(), interval), interval, "ClearExpiredUserSessions");
+
+            // Sportsbet - Launch token refresh job
+            long tokenInterval = Config.scope("cache").scope("tokens").getLong("refreshInterval") * 1000;
+            timer.schedule(new ClusterAwareScheduledTaskRunner(sessionFactory, new RefreshExpiredTokens(), tokenInterval), tokenInterval, "RefreshExpiredTokens");
+
             new UsersSyncManager().bootstrapPeriodic(sessionFactory, timer);
         } finally {
             session.close();

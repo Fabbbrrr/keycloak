@@ -16,6 +16,7 @@
  */
 package org.keycloak.services;
 
+import org.keycloak.Config;
 import org.keycloak.models.*;
 import org.keycloak.models.cache.CacheRealmProvider;
 import org.keycloak.models.cache.CacheUserProvider;
@@ -38,6 +39,8 @@ public class DefaultKeycloakSession implements KeycloakSession {
     private UserSessionProvider sessionProvider;
     private UserFederationManager federationManager;
     private KeycloakContext context;
+    // Sportsbet
+    private TokenCacheProvider tokenCacheProvider;
 
     public DefaultKeycloakSession(DefaultKeycloakSessionFactory factory) {
         this.factory = factory;
@@ -168,4 +171,27 @@ public class DefaultKeycloakSession implements KeycloakSession {
         }
     }
 
+    // Sportsbet - get provider
+    private TokenCacheProvider getTokenCacheProvider() {
+        Class cls = null;
+        try {
+            String className = Config.scope("cache").scope("tokens").get("tokenProviderClass");
+            cls = Class.forName(className);
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+        if (factory.getDefaultProvider(cls) != null) {
+            return (TokenCacheProvider) getProvider(cls);
+        }
+        return null;
+    }
+
+    // Sportsbet - get token provider from session
+    @Override
+    public TokenCacheProvider tokens() {
+        if (tokenCacheProvider == null) {
+            tokenCacheProvider = getTokenCacheProvider();
+        }
+        return tokenCacheProvider;
+    }
 }

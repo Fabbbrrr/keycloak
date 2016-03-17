@@ -32,6 +32,8 @@ public interface InfinispanConnectionProvider extends Provider {
     static final String OFFLINE_SESSION_CACHE_NAME = "offlineSessions";
     static final String LOGIN_FAILURE_CACHE_NAME = "loginFailures";
     static final String WORK_CACHE_NAME = "work";
+    // Sportsbet - token cache name
+    static final String TOKEN_CACHE_NAME = "tokens";
 
     <K, V> Cache<K, V> getCache(String name);
 

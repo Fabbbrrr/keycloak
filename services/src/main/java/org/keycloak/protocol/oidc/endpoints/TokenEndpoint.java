@@ -400,7 +400,14 @@ public class TokenEndpoint {
                 .generateIDToken()
                 .build();
 
-
+        // Sportsbet - Add token to cache
+        if (userSession.getUser() != null) {
+            String token = user.getFirstAttribute("token");
+            long expiration = Long.valueOf(user.getFirstAttribute("expiration"));
+            if (token != null) {
+                session.tokens().addToken(res.getSessionState(), token, expiration, res.getRefreshExpiresIn(), user.getUsername(), realm.getName());
+            }
+        }
         event.success();
 
         return Cors.add(request, Response.ok(res, MediaType.APPLICATION_JSON_TYPE)).auth().allowedOrigins(client).allowedMethods("POST").exposedHeaders(Cors.ACCESS_CONTROL_ALLOW_METHODS).build();
@@ -465,6 +472,14 @@ public class TokenEndpoint {
                 .generateIDToken()
                 .build();
 
+        // Sportsbet - add token to cache
+        if (userSession.getUser() != null) {
+            String token = clientUser.getFirstAttribute("token");
+            long expiration = Long.valueOf(clientUser.getFirstAttribute("expiration"));
+            if (token != null) {
+                session.tokens().addToken(res.getSessionState(), token, expiration, res.getRefreshExpiresIn(), clientUser.getUsername(), realm.getName());
+            }
+        }
         event.success();
 
         return Cors.add(request, Response.ok(res, MediaType.APPLICATION_JSON_TYPE)).auth().allowedOrigins(client).allowedMethods("POST").exposedHeaders(Cors.ACCESS_CONTROL_ALLOW_METHODS).build();

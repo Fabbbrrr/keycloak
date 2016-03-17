@@ -314,6 +314,9 @@ public class InfinispanUserSessionProvider implements UserSessionProvider {
                     tx.remove(sessionCache, clientSessionId);
                 }
             }
+
+            // Sportsbet - Also remove cached token from this session
+            removeExpiredTokens(entity.getId());
         }
     }
 
@@ -322,7 +325,11 @@ public class InfinispanUserSessionProvider implements UserSessionProvider {
 
         Iterator<Map.Entry<String, SessionEntity>> itr = sessionCache.entrySet().stream().filter(ClientSessionPredicate.create(realm.getId()).expiredRefresh(expiredDettachedClientSession).requireNullUserSession()).iterator();
         while (itr.hasNext()) {
-            tx.remove(sessionCache, itr.next().getKey());
+            String id = itr.next().getKey();
+            tx.remove(sessionCache, id);
+
+            // Sportsbet - Also remove cached token from this session
+            removeExpiredTokens(id);
         }
     }
 
@@ -358,8 +365,17 @@ public class InfinispanUserSessionProvider implements UserSessionProvider {
     private void removeExpiredClientInitialAccess(RealmModel realm) {
         Iterator<String> itr = sessionCache.entrySet().stream().filter(ClientInitialAccessPredicate.create(realm.getId()).expired(Time.currentTime())).map(Mappers.sessionId()).iterator();
         while (itr.hasNext()) {
-            tx.remove(sessionCache, itr.next());
+            String id = itr.next();
+            tx.remove(sessionCache, id);
+
+            // Sportsbet - Also remove cached token from this session
+            removeExpiredTokens(id);
         }
+    }
+
+    // Sportsbet - Remove token from cache
+    private void removeExpiredTokens(String guid) {
+        session.tokens().removeToken(guid);
     }
 
     @Override

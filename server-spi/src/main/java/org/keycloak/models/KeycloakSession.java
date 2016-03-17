@@ -76,4 +76,9 @@ public interface KeycloakSession {
      *  Keycloak user storage.  Non-federated, but possibly cache (if it is on) view of users.
      */
     UserProvider userStorage();
+
+    /**
+     *  Sportsbet - Keycloak token storage.  Cache only view of user tokens.
+     */
+    TokenCacheProvider tokens();
 }

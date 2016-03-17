@@ -148,6 +148,11 @@ public class LogoutEndpoint {
             event.user(userSession.getUser()).session(userSession).success();
         }
 
+        // Sportsbet - remove token from cache
+        if (userSession != null) {
+            session.tokens().removeToken(userSession.getId());
+        }
+
         if (redirect != null) {
             UriBuilder uriBuilder = UriBuilder.fromUri(redirect);
             if (state != null) uriBuilder.queryParam(OIDCLoginProtocol.STATE_PARAM, state);
@@ -191,6 +196,11 @@ public class LogoutEndpoint {
             UserSessionModel userSessionModel = session.sessions().getUserSession(realm, token.getSessionState());
             if (userSessionModel != null) {
                 logout(userSessionModel);
+            }
+
+            // Sportsbet - remove token from cache
+            if (userSessionModel != null) {
+                session.tokens().removeToken(token.getSessionState());
             }
         } catch (OAuthErrorException e) {
             event.error(Errors.INVALID_TOKEN);
