@@ -22,6 +22,7 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.keycloak.authentication.authenticators.broker.IdpReviewProfileAuthenticatorFactory;
+import org.keycloak.common.util.Time;
 import org.keycloak.models.AuthenticatorConfigModel;
 import org.keycloak.models.FederatedIdentityModel;
 import org.keycloak.models.IdentityProviderModel;
@@ -39,6 +40,7 @@ import org.keycloak.testsuite.broker.util.UserSessionStatusServlet.UserSessionSt
 import org.keycloak.testsuite.pages.AccountFederatedIdentityPage;
 import org.keycloak.testsuite.pages.AccountPasswordPage;
 import org.keycloak.testsuite.pages.AccountUpdateProfilePage;
+import org.keycloak.testsuite.pages.ErrorPage;
 import org.keycloak.testsuite.pages.LoginPage;
 import org.keycloak.testsuite.pages.LoginUpdateProfilePage;
 import org.keycloak.testsuite.pages.OAuthGrantPage;
@@ -54,17 +56,12 @@ import javax.mail.MessagingException;
 import javax.mail.Multipart;
 import javax.mail.internet.MimeMessage;
 import javax.ws.rs.core.UriBuilder;
-
 import java.io.IOException;
 import java.net.URI;
 import java.util.List;
 import java.util.Set;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 /**
  * @author pedroigor
@@ -113,7 +110,12 @@ public abstract class AbstractIdentityProviderTest {
     @WebResource
     protected AccountFederatedIdentityPage accountFederatedIdentityPage;
 
+    @WebResource
+    protected ErrorPage errorPage;
+
     protected KeycloakSession session;
+
+    protected int logoutTimeOffset = 0;
 
     @Before
     public void onBefore() {
@@ -160,11 +162,22 @@ public abstract class AbstractIdentityProviderTest {
         assertEquals(getProviderId(), federatedIdentityModel.getIdentityProvider());
         assertEquals(federatedUser.getUsername(), federatedIdentityModel.getUserName());
 
-        driver.navigate().to("http://localhost:8081/test-app/logout");
+        // test access token timeot on logout
+        if (logoutTimeOffset > 0) {
+            Time.setOffset(logoutTimeOffset);
+        }
+        try {
+            driver.navigate().to("http://localhost:8081/test-app/logout");
+        } finally {
+            Time.setOffset(0);
+        }
+
+
         driver.navigate().to("http://localhost:8081/test-app");
 
         assertTrue(this.driver.getCurrentUrl().startsWith("http://localhost:8081/auth/realms/realm-with-broker/protocol/openid-connect/auth"));
         return federatedUser;
+
     }
 
 
@@ -202,7 +215,6 @@ public abstract class AbstractIdentityProviderTest {
 
         String currentUrl = this.driver.getCurrentUrl();
         assertTrue(currentUrl.startsWith("http://localhost:8082/auth/"));
-        System.out.println(this.driver.getCurrentUrl());
         // log in to identity provider
         this.loginPage.login(username, "password");
         doAfterProviderAuthentication();

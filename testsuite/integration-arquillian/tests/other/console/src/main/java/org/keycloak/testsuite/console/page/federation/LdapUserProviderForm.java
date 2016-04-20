@@ -11,6 +11,9 @@ import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.FindBy;
 import org.openqa.selenium.support.ui.Select;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * @author fkiss, pdrozd
  */
@@ -188,6 +191,26 @@ public class LdapUserProviderForm extends Form {
         vendorSelect.selectByVisibleText(vendor);
     }
 
+    public void selectVendor(int index) {
+        waitUntilElement(By.id("vendor")).is().present();
+        vendorSelect.selectByIndex(index);
+    }
+
+    public List<String> getVendors() {
+        waitUntilElement(By.id("vendor")).is().present();
+
+        List<WebElement> vendorsElements = vendorSelect.getOptions();
+        List<String> vendorsString = new ArrayList<>();
+
+        for (WebElement vendorElement : vendorsElements) {
+            String text = vendorElement.getText();
+            if (text.equals("")) {continue;}
+            vendorsString.add(text);
+        }
+
+        return vendorsString;
+    }
+
     public void selectAuthenticationType(String authenticationType) {
         waitUntilElement(By.id("authType")).is().present();
         authTypeSelect.selectByVisibleText(authenticationType);
@@ -211,20 +234,11 @@ public class LdapUserProviderForm extends Form {
     }
 
     public void setAccountAfterPasswordUpdateEnabled(boolean enabled) {
-        if ((!enableAccountAfterPasswordUpdate.isOn() && enabled)
-                || !enabled && enableAccountAfterPasswordUpdate.isOn()) {
-            driver.findElement(By
-                    .xpath("//div[contains(@class,'onoffswitch') and ./input[@id='userAccountControlsAfterPasswordUpdate']]"))
-                    .findElements(By.tagName("span")).get(0).click();
-        }
+        enableAccountAfterPasswordUpdate.setOn(enabled);
     }
 
     public void setAllowKerberosAuthEnabled(boolean enabled) {
-        if ((!allowKerberosAuth.isOn() && enabled) || !enabled && allowKerberosAuth.isOn()) {
-            driver.findElement(
-                    By.xpath("//div[contains(@class,'onoffswitch') and ./input[@id='allowKerberosAuthentication']]"))
-                    .findElements(By.tagName("span")).get(0).click();
-        }
+        allowKerberosAuth.setOn(enabled);
     }
 
     public void setDebugEnabled(boolean debugEnabled) {

@@ -27,6 +27,7 @@ import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.representations.idm.ClientRepresentation;
+import org.keycloak.representations.idm.GroupRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.services.managers.RealmManager;
@@ -35,6 +36,7 @@ import org.keycloak.util.JsonSerialization;
 
 import javax.ws.rs.BadRequestException;
 import javax.ws.rs.NotFoundException;
+import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -67,6 +69,34 @@ public class RealmTest extends AbstractClientTest {
             assertNull(rep.getCodeSecret());
             assertNotNull(rep.getPublicKey());
             assertNotNull(rep.getCertificate());
+        }
+    }
+
+    @Test
+    public void renameRealm() {
+        RealmRepresentation rep = new RealmRepresentation();
+        rep.setId("old");
+        rep.setRealm("old");
+
+        try {
+            keycloak.realms().create(rep);
+
+            rep.setRealm("new");
+            keycloak.realm("old").update(rep);
+
+            // Check client in master realm renamed
+            assertEquals(0, keycloak.realm("master").clients().findByClientId("old-realm").size());
+            assertEquals(1, keycloak.realm("master").clients().findByClientId("new-realm").size());
+
+            ClientRepresentation adminClient = keycloak.realm("new").clients().findByClientId(Constants.ADMIN_CONSOLE_CLIENT_ID).get(0);
+            assertEquals("/auth/admin/new/console/index.html", adminClient.getBaseUrl());
+            assertEquals("/auth/admin/new/console/*", adminClient.getRedirectUris().get(0));
+
+            ClientRepresentation accountClient = keycloak.realm("new").clients().findByClientId(Constants.ACCOUNT_MANAGEMENT_CLIENT_ID).get(0);
+            assertEquals("/auth/realms/new/account", accountClient.getBaseUrl());
+            assertEquals("/auth/realms/new/account/*", accountClient.getRedirectUris().get(0));
+        } finally {
+            keycloak.realms().realm(rep.getRealm()).remove();
         }
     }
 
@@ -411,6 +441,24 @@ public class RealmTest extends AbstractClientTest {
         realm.update(rep);
 
         assertEquals(certificate, rep.getCertificate());
+    }
+
+    @Test
+    // KEYCLOAK-2700
+    public void deleteRealmWithDefaultGroups() throws IOException {
+        RealmRepresentation rep = new RealmRepresentation();
+        rep.setRealm("foo");
+
+        GroupRepresentation group = new GroupRepresentation();
+        group.setName("default1");
+        group.setPath("/default1");
+
+        rep.setGroups(Collections.singletonList(group));
+        rep.setDefaultGroups(Collections.singletonList("/default1"));
+
+        keycloak.realms().create(rep);
+
+        keycloak.realm(rep.getRealm()).remove();
     }
 
 }

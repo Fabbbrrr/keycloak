@@ -24,15 +24,21 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.naming.InitialContext;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.Persistence;
+import javax.persistence.spi.PersistenceUnitTransactionType;
 import javax.sql.DataSource;
 
+import org.hibernate.boot.registry.classloading.internal.ClassLoaderServiceImpl;
 import org.hibernate.ejb.AvailableSettings;
+import org.hibernate.jpa.boot.internal.ParsedPersistenceXmlDescriptor;
+import org.hibernate.jpa.boot.internal.PersistenceXmlParser;
+import org.hibernate.jpa.boot.spi.Bootstrap;
 import org.jboss.logging.Logger;
 import org.keycloak.Config;
 import org.keycloak.connections.jpa.updater.JpaUpdaterProvider;
@@ -40,6 +46,7 @@ import org.keycloak.connections.jpa.util.JpaUtils;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.provider.ServerInfoAwareProviderFactory;
+import org.keycloak.timer.TimerProvider;
 
 /**
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
@@ -94,8 +101,6 @@ public class DefaultJpaConnectionProviderFactory implements JpaConnectionProvide
 
                     Connection connection = null;
 
-                    String databaseSchema = config.get("databaseSchema");
-
                     Map<String, Object> properties = new HashMap<String, Object>();
 
                     String unitName = "keycloak-default";
@@ -126,14 +131,18 @@ public class DefaultJpaConnectionProviderFactory implements JpaConnectionProvide
                         properties.put(JpaUtils.HIBERNATE_DEFAULT_SCHEMA, schema);
                     }
 
-                    if (databaseSchema != null) {
-                        if (databaseSchema.equals("development-update")) {
-                            properties.put("hibernate.hbm2ddl.auto", "update");
-                            databaseSchema = null;
-                        } else if (databaseSchema.equals("development-validate")) {
-                            properties.put("hibernate.hbm2ddl.auto", "validate");
-                            databaseSchema = null;
-                        }
+
+                    String databaseSchema = config.get("databaseSchema");
+                    if (databaseSchema == null) {
+                        throw new RuntimeException("Property 'databaseSchema' needs to be specified in the configuration");
+                    }
+                    
+                    if (databaseSchema.equals("development-update")) {
+                        properties.put("hibernate.hbm2ddl.auto", "update");
+                        databaseSchema = null;
+                    } else if (databaseSchema.equals("development-validate")) {
+                        properties.put("hibernate.hbm2ddl.auto", "validate");
+                        databaseSchema = null;
                     }
 
                     properties.put("hibernate.show_sql", config.getBoolean("showSql", false));
@@ -179,10 +188,19 @@ public class DefaultJpaConnectionProviderFactory implements JpaConnectionProvide
 	
 	                        logger.trace("Database update completed");
 	                    }
-	
+
+                        int globalStatsInterval = config.getInt("globalStatsInterval", -1);
+                        if (globalStatsInterval != -1) {
+                            properties.put("hibernate.generate_statistics", true);
+                        }
+
 	                    logger.trace("Creating EntityManagerFactory");
-	                    emf = Persistence.createEntityManagerFactory(unitName, properties);
+	                    emf = JpaUtils.createEntityManagerFactory(unitName, properties, getClass().getClassLoader());
 	                    logger.trace("EntityManagerFactory created");
+
+                        if (globalStatsInterval != -1) {
+                            startGlobalStats(session, globalStatsInterval);
+                        }
 
                     } catch (Exception e) {
                         // Safe rollback
@@ -258,6 +276,12 @@ public class DefaultJpaConnectionProviderFactory implements JpaConnectionProvide
 
             return null;
         }
+    }
+
+    protected void startGlobalStats(KeycloakSession session, int globalStatsIntervalSecs) {
+        logger.debugf("Started Hibernate statistics with the interval %s seconds", globalStatsIntervalSecs);
+        TimerProvider timer = session.getProvider(TimerProvider.class);
+        timer.scheduleTask(new HibernateStatsReporter(emf), globalStatsIntervalSecs * 1000, "ReportHibernateGlobalStats");
     }
 
 

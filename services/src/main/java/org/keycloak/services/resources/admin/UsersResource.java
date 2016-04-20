@@ -166,14 +166,14 @@ public class UsersResource {
                 attrsToRemove = Collections.emptySet();
             }
 
-            if (rep.isEnabled() != null && rep.isEnabled()) {
+            if (rep.isEnabled() != null && rep.isEnabled() && rep.getUsername() != null) {
                 UsernameLoginFailureModel failureModel = session.sessions().getUserLoginFailure(realm, rep.getUsername().toLowerCase());
                 if (failureModel != null) {
                     failureModel.clearFailures();
                 }
             }
 
-            updateUserFromRep(user, rep, attrsToRemove, realm, session);
+            updateUserFromRep(user, rep, attrsToRemove, realm, session, true);
             adminEvent.operation(OperationType.UPDATE).resourcePath(uriInfo).representation(rep).success();
 
             if (session.getTransaction().isActive()) {
@@ -212,7 +212,7 @@ public class UsersResource {
         try {
             UserModel user = session.users().addUser(realm, rep.getUsername());
             Set<String> emptySet = Collections.emptySet();
-            updateUserFromRep(user, rep, emptySet, realm, session);
+            updateUserFromRep(user, rep, emptySet, realm, session, false);
 
             adminEvent.operation(OperationType.CREATE).resourcePath(uriInfo, user.getId()).representation(rep).success();
 
@@ -229,7 +229,7 @@ public class UsersResource {
         }
     }
 
-    public static void updateUserFromRep(UserModel user, UserRepresentation rep, Set<String> attrsToRemove, RealmModel realm, KeycloakSession session) {
+    public static void updateUserFromRep(UserModel user, UserRepresentation rep, Set<String> attrsToRemove, RealmModel realm, KeycloakSession session, boolean removeMissingRequiredActions) {
         if (rep.getUsername() != null && realm.isEditUsernameAllowed()) {
             user.setUsername(rep.getUsername());
         }
@@ -251,7 +251,7 @@ public class UsersResource {
             for (String action : allActions) {
                 if (reqActions.contains(action)) {
                     user.addRequiredAction(action);
-                } else {
+                } else if (removeMissingRequiredActions) {
                     user.removeRequiredAction(action);
                 }
             }
@@ -330,7 +330,7 @@ public class UsersResource {
         EventBuilder event = new EventBuilder(realm, session, clientConnection);
 
         UserSessionModel userSession = session.sessions().createUserSession(realm, user, user.getUsername(), clientConnection.getRemoteAddr(), "impersonate", false, null, null);
-        AuthenticationManager.createLoginCookie(realm, userSession.getUser(), userSession, uriInfo, clientConnection);
+        AuthenticationManager.createLoginCookie(session, realm, userSession.getUser(), userSession, uriInfo, clientConnection);
         URI redirect = AccountService.accountServiceApplicationPage(uriInfo).build(realm.getName());
         Map<String, Object> result = new HashMap<>();
         result.put("sameRealm", sameRealm);
@@ -681,6 +681,16 @@ public class UsersResource {
         return results;
     }
 
+    @Path("count")
+    @GET
+    @NoCache
+    @Produces(MediaType.APPLICATION_JSON)
+    public Integer getUsersCount() {
+        auth.requireView();
+
+        return session.users().getUsersCount(realm);
+    }
+
     @Path("{id}/role-mappings")
     public RoleMapperResource getRoleMappings(@PathParam("id") String id) {
 
@@ -939,7 +949,14 @@ public class UsersResource {
         if (group == null) {
             throw new NotFoundException("Group not found");
         }
-        if (user.isMemberOf(group)) user.leaveGroup(group);
+
+        try {
+            if (user.isMemberOf(group)) user.leaveGroup(group);
+        } catch (ModelException me) {
+            Properties messages = AdminRoot.getMessages(session, realm, auth.getAuth().getToken().getLocale());
+            throw new ErrorResponseException(me.getMessage(), MessageFormat.format(messages.getProperty(me.getMessage(), me.getMessage()), me.getParameters()),
+                    Response.Status.BAD_REQUEST);
+        }
     }
 
     @PUT

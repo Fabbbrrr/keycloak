@@ -16,9 +16,20 @@
  */
 package org.keycloak.testsuite;
 
+import org.apache.commons.configuration.ConfigurationException;
+import org.apache.commons.configuration.PropertiesConfiguration;
+import org.apache.commons.io.IOUtils;
+import org.keycloak.common.util.KeycloakUriBuilder;
 import org.keycloak.testsuite.arquillian.TestContext;
+
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import javax.ws.rs.NotFoundException;
@@ -45,18 +56,25 @@ import org.keycloak.testsuite.admin.ApiUtil;
 import org.keycloak.testsuite.arquillian.AuthServerTestEnricher;
 import org.keycloak.testsuite.arquillian.SuiteContext;
 import org.keycloak.testsuite.auth.page.WelcomePage;
+import org.keycloak.testsuite.util.DeleteMeOAuthClient;
 import org.keycloak.testsuite.util.OAuthClient;
+import org.keycloak.util.JsonSerialization;
 import org.openqa.selenium.WebDriver;
 import org.keycloak.testsuite.auth.page.AuthServer;
 import org.keycloak.testsuite.auth.page.AuthServerContextRoot;
 import org.keycloak.testsuite.auth.page.AuthRealm;
+
 import static org.keycloak.testsuite.auth.page.AuthRealm.ADMIN;
 import static org.keycloak.testsuite.auth.page.AuthRealm.MASTER;
+
 import org.keycloak.testsuite.auth.page.account.Account;
 import org.keycloak.testsuite.auth.page.login.OIDCLogin;
 import org.keycloak.testsuite.auth.page.login.UpdatePassword;
 import org.keycloak.testsuite.util.WaitUtils;
+
 import static org.keycloak.testsuite.admin.Users.setPasswordFor;
+
+import org.keycloak.testsuite.util.TestEventsLogger;
 
 /**
  *
@@ -76,7 +94,10 @@ public abstract class AbstractKeycloakTest {
 
     protected Keycloak adminClient;
 
+    @ArquillianResource
     protected OAuthClient oauthClient;
+
+    protected DeleteMeOAuthClient deleteMeOAuthClient;
 
     protected List<RealmRepresentation> testRealmReps;
 
@@ -103,11 +124,15 @@ public abstract class AbstractKeycloakTest {
 
     protected UserRepresentation adminUser;
 
+    private PropertiesConfiguration constantsProperties;
+
+    private boolean resetTimeOffset;
+
     @Before
     public void beforeAbstractKeycloakTest() {
         adminClient = Keycloak.getInstance(AuthServerTestEnricher.getAuthServerContextRoot() + "/auth",
                 MASTER, ADMIN, ADMIN, Constants.ADMIN_CLI_CLIENT_ID);
-        oauthClient = new OAuthClient(AuthServerTestEnricher.getAuthServerContextRoot() + "/auth");
+        deleteMeOAuthClient = new DeleteMeOAuthClient(AuthServerTestEnricher.getAuthServerContextRoot() + "/auth");
 
         
         adminUser = createAdminUserRepresentation();
@@ -115,6 +140,8 @@ public abstract class AbstractKeycloakTest {
         setDefaultPageUriParameters();
 
         driverSettings();
+        
+        TestEventsLogger.setDriver(driver);
 
         if (!suiteContext.isAdminPasswordUpdated()) {
             log.debug("updating admin password");
@@ -123,12 +150,19 @@ public abstract class AbstractKeycloakTest {
         }
 
         importTestRealms();
+
+        oauthClient.setAdminClient(adminClient);
+        oauthClient.setDriver(driver);
     }
 
     @After
     public void afterAbstractKeycloakTest() {
+        if (resetTimeOffset) {
+            resetTimeOffset();
+        }
+
 //        removeTestRealms(); // keeping test realms after test to be able to inspect failures, instead deleting existing realms before import
-//        keycloak.close(); // keeping admin connection open
+//        adminClient.close(); // keeping admin connection open
     }
 
     private void updateMasterAdminPassword() {
@@ -221,7 +255,7 @@ public abstract class AbstractKeycloakTest {
             realmRepresentation.setEnabled(true);
             realmRepresentation.setRegistrationAllowed(true);
             adminClient.realms().create(realmRepresentation);
-            
+
 //            List<RequiredActionProviderRepresentation> requiredActions = adminClient.realm(realm).flows().getRequiredActions();
 //            for (RequiredActionProviderRepresentation a : requiredActions) {
 //                a.setEnabled(false);
@@ -230,28 +264,28 @@ public abstract class AbstractKeycloakTest {
 //            }
         }
     }
-    
+
     public String createUser(String realm, String username, String password, String ... requiredActions) {
         List<String> requiredUserActions = Arrays.asList(requiredActions);
-        
+
         UserRepresentation homer = new UserRepresentation();
         homer.setEnabled(true);
         homer.setUsername(username);
         homer.setRequiredActions(requiredUserActions);
-        
+
         return ApiUtil.createUserAndResetPasswordWithAdminClient(adminClient.realm(realm), homer, password);
     }
-    
+
     public void setRequiredActionEnabled(String realm, String requiredAction, boolean enabled, boolean defaultAction) {
         AuthenticationManagementResource managementResource = adminClient.realm(realm).flows();
-        
+
         RequiredActionProviderRepresentation action = managementResource.getRequiredAction(requiredAction);
         action.setEnabled(enabled);
         action.setDefaultAction(defaultAction);
-      
+
         managementResource.updateRequiredAction(requiredAction, action);
     }
-    
+
     public void setRequiredActionEnabled(String realm, String userId, String requiredAction, boolean enabled) {
         UsersResource usersResource = adminClient.realm(realm).users();
 
@@ -264,8 +298,63 @@ public abstract class AbstractKeycloakTest {
         } else if (!enabled && requiredActions.contains(requiredAction)) {
             requiredActions.remove(requiredAction);
         }
-        
+
         userResource.update(userRepresentation);
     }
-    
+
+    public void setTimeOffset(int offset) {invokeTimeOffset(offset);
+        String response = invokeTimeOffset(offset);
+        resetTimeOffset = offset != 0;
+        log.debugv("Set time offset, response {0}", response);
+    }
+
+    public void resetTimeOffset() {
+        String response = invokeTimeOffset(0);
+        resetTimeOffset = false;
+        log.debugv("Reset time offset, response {0}", response);
+    }
+
+    private String invokeTimeOffset(int offset) {
+        try {
+            String data = JsonSerialization.writeValueAsString(Collections.singletonMap("offset", String.valueOf(offset)));
+            URI uri = KeycloakUriBuilder.fromUri(suiteContext.getAuthServerInfo().getContextRoot().toURI()).path("/auth/realms/master/time-offset").build();
+            HttpURLConnection connection = (HttpURLConnection) uri.toURL().openConnection();
+            connection.setDoOutput(true);
+            connection.setRequestMethod("PUT");
+            connection.setRequestProperty("Content-Type", "application/json");
+            connection.setRequestProperty("Content-Length", String.valueOf(data.length()));
+
+            OutputStream os = connection.getOutputStream();
+            os.write(data.getBytes());
+            os.close();
+
+            InputStream is = connection.getInputStream();
+            String response = IOUtils.toString(is);
+            is.close();
+            return response;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void loadConstantsProperties() throws ConfigurationException {
+        constantsProperties = new PropertiesConfiguration(System.getProperty("testsuite.constants"));
+        constantsProperties.setThrowExceptionOnMissing(true);
+    }
+
+    protected PropertiesConfiguration getConstantsProperties() throws ConfigurationException {
+        if (constantsProperties == null) {
+            loadConstantsProperties();
+        }
+        return constantsProperties;
+    }
+
+    public URI getAuthServerRoot() {
+        try {
+            return KeycloakUriBuilder.fromUri(suiteContext.getAuthServerInfo().getContextRoot().toURI()).path("/auth/").build();
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 }

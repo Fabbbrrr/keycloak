@@ -16,23 +16,25 @@
  */
 package org.keycloak.services.resources;
 
-import org.jboss.resteasy.annotations.cache.NoCache;
 import org.jboss.resteasy.spi.HttpRequest;
 import org.jboss.resteasy.spi.ResteasyProviderFactory;
 import org.keycloak.OAuth2Constants;
+import org.keycloak.authentication.AuthenticationProcessor;
 import org.keycloak.authentication.authenticators.broker.AbstractIdpAuthenticator;
 import org.keycloak.authentication.authenticators.broker.util.PostBrokerLoginConstants;
 import org.keycloak.authentication.authenticators.broker.util.SerializedBrokeredIdentityContext;
-import org.keycloak.common.ClientConnection;
-import org.keycloak.authentication.AuthenticationProcessor;
 import org.keycloak.broker.provider.AuthenticationRequest;
 import org.keycloak.broker.provider.BrokeredIdentityContext;
 import org.keycloak.broker.provider.IdentityBrokerException;
 import org.keycloak.broker.provider.IdentityProvider;
 import org.keycloak.broker.provider.IdentityProviderFactory;
 import org.keycloak.broker.provider.IdentityProviderMapper;
+import org.keycloak.broker.social.SocialIdentityProvider;
+import org.keycloak.common.ClientConnection;
+import org.keycloak.common.util.ObjectUtil;
 import org.keycloak.common.util.Time;
 import org.keycloak.events.Details;
+import org.keycloak.events.Errors;
 import org.keycloak.events.EventBuilder;
 import org.keycloak.events.EventType;
 import org.keycloak.forms.login.LoginFormsProvider;
@@ -53,28 +55,30 @@ import org.keycloak.models.utils.FormMessage;
 import org.keycloak.protocol.oidc.TokenManager;
 import org.keycloak.provider.ProviderFactory;
 import org.keycloak.representations.AccessToken;
+import org.keycloak.services.ErrorPage;
+import org.keycloak.services.ErrorResponse;
+import org.keycloak.services.ServicesLogger;
+import org.keycloak.services.Urls;
 import org.keycloak.services.managers.AppAuthManager;
 import org.keycloak.services.managers.AuthenticationManager.AuthResult;
 import org.keycloak.services.managers.ClientSessionCode;
 import org.keycloak.services.messages.Messages;
-import org.keycloak.services.ErrorResponse;
-import org.keycloak.services.ErrorPage;
-import org.keycloak.services.ServicesLogger;
-import org.keycloak.services.Urls;
 import org.keycloak.services.util.CacheControlUtil;
 import org.keycloak.services.validation.Validation;
-import org.keycloak.broker.social.SocialIdentityProvider;
-import org.keycloak.common.util.ObjectUtil;
 import org.keycloak.util.JsonSerialization;
 
-import javax.ws.rs.*;
+import javax.ws.rs.GET;
+import javax.ws.rs.OPTIONS;
+import javax.ws.rs.POST;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
-
 import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
@@ -143,7 +147,12 @@ public class IdentityBrokerService implements IdentityProvider.AuthenticationCal
         }
 
         try {
-            ClientSessionCode clientSessionCode = parseClientSessionCode(code);
+            ParsedCodeContext parsedCode = parseClientSessionCode(code);
+            if (parsedCode.response != null) {
+                return parsedCode.response;
+            }
+
+            ClientSessionCode clientSessionCode = parsedCode.clientSessionCode;
             IdentityProvider identityProvider = getIdentityProvider(session, realmModel, providerId);
             Response response = identityProvider.performLogin(createAuthenticationRequest(providerId, clientSessionCode));
 
@@ -227,7 +236,7 @@ public class IdentityBrokerService implements IdentityProvider.AuthenticationCal
 
                     this.event.success();
 
-                    return corsResponse(identityProvider.retrieveToken(identity), clientModel);
+                    return corsResponse(identityProvider.retrieveToken(session, identity), clientModel);
                 }
 
                 return corsResponse(badRequest("Identity Provider [" + providerId + "] does not support this operation."), clientModel);
@@ -242,14 +251,14 @@ public class IdentityBrokerService implements IdentityProvider.AuthenticationCal
     }
 
     public Response authenticated(BrokeredIdentityContext context) {
-        ClientSessionCode clientCode = null;
         IdentityProviderModel identityProviderConfig = context.getIdpConfig();
-        try {
-            clientCode = parseClientSessionCode(context.getCode());
-        } catch (Exception e) {
-            return redirectToErrorPage(Messages.IDENTITY_PROVIDER_AUTHENTICATION_FAILED, e, identityProviderConfig.getProviderId());
 
+        ParsedCodeContext parsedCode = parseClientSessionCode(context.getCode());
+        if (parsedCode.response != null) {
+            return parsedCode.response;
         }
+        ClientSessionCode clientCode = parsedCode.clientSessionCode;
+
         String providerId = identityProviderConfig.getAlias();
         if (!identityProviderConfig.isStoreToken()) {
             if (isDebugEnabled()) {
@@ -315,6 +324,11 @@ public class IdentityBrokerService implements IdentityProvider.AuthenticationCal
             return Response.status(302).location(redirect).build();
 
         } else {
+            Response response = validateUser(federatedUser, realmModel);
+            if (response != null) {
+                return response;
+            }
+
             updateFederatedIdentity(context, federatedUser);
             clientSession.setAuthenticatedUser(federatedUser);
 
@@ -322,12 +336,27 @@ public class IdentityBrokerService implements IdentityProvider.AuthenticationCal
         }
     }
 
+    public Response validateUser(UserModel user, RealmModel realm) {
+        if (!user.isEnabled()) {
+            event.error(Errors.USER_DISABLED);
+            return ErrorPage.error(session, Messages.ACCOUNT_DISABLED);
+        }
+        if (realm.isBruteForceProtected()) {
+            event.error(Errors.USER_TEMPORARILY_DISABLED);
+            return ErrorPage.error(session, Messages.ACCOUNT_DISABLED);
+        }
+        return null;
+    }
+
     // Callback from LoginActionsService after first login with broker was done and Keycloak account is successfully linked/created
     @GET
     @Path("/after-first-broker-login")
     public Response afterFirstBrokerLogin(@QueryParam("code") String code) {
-        ClientSessionCode clientCode = parseClientSessionCode(code);
-        ClientSessionModel clientSession = clientCode.getClientSession();
+        ParsedCodeContext parsedCode = parseClientSessionCode(code);
+        if (parsedCode.response != null) {
+            return parsedCode.response;
+        }
+        ClientSessionModel clientSession = parsedCode.clientSessionCode.getClientSession();
 
         try {
             this.event.detail(Details.CODE_ID, clientSession.getId())
@@ -440,8 +469,11 @@ public class IdentityBrokerService implements IdentityProvider.AuthenticationCal
     @GET
     @Path("/after-post-broker-login")
     public Response afterPostBrokerLoginFlow(@QueryParam("code") String code) {
-        ClientSessionCode clientCode = parseClientSessionCode(code);
-        ClientSessionModel clientSession = clientCode.getClientSession();
+        ParsedCodeContext parsedCode = parseClientSessionCode(code);
+        if (parsedCode.response != null) {
+            return parsedCode.response;
+        }
+        ClientSessionModel clientSession = parsedCode.clientSessionCode.getClientSession();
 
         try {
             SerializedBrokeredIdentityContext serializedCtx = SerializedBrokeredIdentityContext.readFromClientSession(clientSession, PostBrokerLoginConstants.PBL_BROKERED_IDENTITY_CONTEXT);
@@ -527,9 +559,15 @@ public class IdentityBrokerService implements IdentityProvider.AuthenticationCal
 
     @Override
     public Response cancelled(String code) {
-        ClientSessionCode clientCode = ClientSessionCode.parse(code, this.session, this.realmModel);
-        if (clientCode.getClientSession() == null || !clientCode.isValid(AUTHENTICATE.name(), ClientSessionCode.ActionType.LOGIN)) {
-            return redirectToErrorPage(Messages.INVALID_CODE);
+        ParsedCodeContext parsedCode = parseClientSessionCode(code);
+        if (parsedCode.response != null) {
+            return parsedCode.response;
+        }
+        ClientSessionCode clientCode = parsedCode.clientSessionCode;
+
+        Response accountManagementFailedLinking = checkAccountManagementFailedLinking(clientCode.getClientSession(), Messages.CONSENT_DENIED);
+        if (accountManagementFailedLinking != null) {
+            return accountManagementFailedLinking;
         }
 
         return browserAuthentication(clientCode.getClientSession(), null);
@@ -537,10 +575,17 @@ public class IdentityBrokerService implements IdentityProvider.AuthenticationCal
 
     @Override
     public Response error(String code, String message) {
-        ClientSessionCode clientCode = ClientSessionCode.parse(code, this.session, this.realmModel);
-        if (clientCode.getClientSession() == null || !clientCode.isValid(AUTHENTICATE.name(), ClientSessionCode.ActionType.LOGIN)) {
-            return redirectToErrorPage(Messages.INVALID_CODE);
+        ParsedCodeContext parsedCode = parseClientSessionCode(code);
+        if (parsedCode.response != null) {
+            return parsedCode.response;
         }
+        ClientSessionCode clientCode = parsedCode.clientSessionCode;
+
+        Response accountManagementFailedLinking = checkAccountManagementFailedLinking(clientCode.getClientSession(), message);
+        if (accountManagementFailedLinking != null) {
+            return accountManagementFailedLinking;
+        }
+
         return browserAuthentication(clientCode.getClientSession(), message);
     }
 
@@ -601,36 +646,60 @@ public class IdentityBrokerService implements IdentityProvider.AuthenticationCal
 
     }
 
-    private ClientSessionCode parseClientSessionCode(String code) {
+    private ParsedCodeContext parseClientSessionCode(String code) {
         ClientSessionCode clientCode = ClientSessionCode.parse(code, this.session, this.realmModel);
 
-        if (clientCode != null && clientCode.isValid(AUTHENTICATE.name(), ClientSessionCode.ActionType.LOGIN)) {
+        if (clientCode != null) {
             ClientSessionModel clientSession = clientCode.getClientSession();
 
-            if (clientSession != null) {
-                ClientModel client = clientSession.getClient();
+            if (clientSession.getUserSession() != null) {
+                this.event.session(clientSession.getUserSession());
+            }
 
-                if (client == null) {
-                    throw new IdentityBrokerException("Invalid client");
-                }
+            ClientModel client = clientSession.getClient();
+
+            if (client != null) {
 
                 logger.debugf("Got authorization code from client [%s].", client.getClientId());
                 this.event.client(client);
                 this.session.getContext().setClient(client);
 
-                if (clientSession.getUserSession() != null) {
-                    this.event.session(clientSession.getUserSession());
+                if (!clientCode.isValid(AUTHENTICATE.name(), ClientSessionCode.ActionType.LOGIN)) {
+                    logger.debugf("Authorization code is not valid. Client session ID: %s, Client session's action: %s", clientSession.getId(), clientSession.getAction());
+
+                    // Check if error happened during login or during linking from account management
+                    Response accountManagementFailedLinking = checkAccountManagementFailedLinking(clientCode.getClientSession(), Messages.STALE_CODE_ACCOUNT);
+                    Response staleCodeError = (accountManagementFailedLinking != null) ? accountManagementFailedLinking : redirectToErrorPage(Messages.STALE_CODE);
+
+
+                    return ParsedCodeContext.response(staleCodeError);
                 }
-            }
 
-            if (isDebugEnabled()) {
-                logger.debugf("Authorization code is valid.");
-            }
+                if (isDebugEnabled()) {
+                    logger.debugf("Authorization code is valid.");
+                }
 
-            return clientCode;
+                return ParsedCodeContext.clientSessionCode(clientCode);
+            }
         }
 
-        throw new IdentityBrokerException("Invalid code, please login again through your client.");
+        logger.debugf("Authorization code is not valid. Code: %s", code);
+        Response staleCodeError = redirectToErrorPage(Messages.STALE_CODE);
+        return ParsedCodeContext.response(staleCodeError);
+    }
+
+    private Response checkAccountManagementFailedLinking(ClientSessionModel clientSession, String error, Object... parameters) {
+        if (clientSession.getUserSession() != null && clientSession.getClient() != null && clientSession.getClient().getClientId().equals(ACCOUNT_MANAGEMENT_CLIENT_ID)) {
+
+            this.event.event(EventType.FEDERATED_IDENTITY_LINK);
+            UserModel user = clientSession.getUserSession().getUser();
+            this.event.user(user);
+            this.event.detail(Details.USERNAME, user.getUsername());
+
+            return redirectToAccountErrorPage(clientSession, error, parameters);
+        } else {
+            return null;
+        }
     }
 
     private AuthenticationRequest createAuthenticationRequest(String providerId, ClientSessionCode clientSessionCode) {
@@ -803,6 +872,24 @@ public class IdentityBrokerService implements IdentityProvider.AuthenticationCal
     private void rollback() {
         if (this.session.getTransaction().isActive()) {
             this.session.getTransaction().rollback();
+        }
+    }
+
+
+    private static class ParsedCodeContext {
+        private ClientSessionCode clientSessionCode;
+        private Response response;
+
+        public static ParsedCodeContext clientSessionCode(ClientSessionCode clientSessionCode) {
+            ParsedCodeContext ctx = new ParsedCodeContext();
+            ctx.clientSessionCode = clientSessionCode;
+            return ctx;
+        }
+
+        public static ParsedCodeContext response(Response response) {
+            ParsedCodeContext ctx = new ParsedCodeContext();
+            ctx.response = response;
+            return ctx;
         }
     }
 }

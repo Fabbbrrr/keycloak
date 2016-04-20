@@ -18,21 +18,31 @@ package org.keycloak.services.managers;
 
 import org.jboss.resteasy.specimpl.MultivaluedMapImpl;
 import org.jboss.resteasy.spi.HttpRequest;
-import org.keycloak.common.ClientConnection;
 import org.keycloak.RSATokenVerifier;
-import org.keycloak.common.VerificationException;
 import org.keycloak.authentication.RequiredActionContext;
 import org.keycloak.authentication.RequiredActionContextResult;
 import org.keycloak.authentication.RequiredActionFactory;
 import org.keycloak.authentication.RequiredActionProvider;
 import org.keycloak.broker.provider.IdentityProvider;
+import org.keycloak.common.ClientConnection;
+import org.keycloak.common.VerificationException;
+import org.keycloak.common.util.Time;
 import org.keycloak.events.Details;
 import org.keycloak.events.Errors;
 import org.keycloak.events.EventBuilder;
 import org.keycloak.events.EventType;
-import org.keycloak.jose.jws.JWSBuilder;
 import org.keycloak.forms.login.LoginFormsProvider;
-import org.keycloak.models.*;
+import org.keycloak.jose.jws.JWSBuilder;
+import org.keycloak.models.ClientModel;
+import org.keycloak.models.ClientSessionModel;
+import org.keycloak.models.KeycloakSession;
+import org.keycloak.models.ProtocolMapperModel;
+import org.keycloak.models.RealmModel;
+import org.keycloak.models.RequiredActionProviderModel;
+import org.keycloak.models.RoleModel;
+import org.keycloak.models.UserConsentModel;
+import org.keycloak.models.UserModel;
+import org.keycloak.models.UserSessionModel;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.protocol.LoginProtocol;
 import org.keycloak.protocol.LoginProtocol.Error;
@@ -44,9 +54,14 @@ import org.keycloak.services.messages.Messages;
 import org.keycloak.services.resources.IdentityBrokerService;
 import org.keycloak.services.resources.RealmsResource;
 import org.keycloak.services.util.CookieHelper;
-import org.keycloak.common.util.Time;
+import org.keycloak.services.util.P3PHelper;
 
-import javax.ws.rs.core.*;
+import javax.ws.rs.core.Cookie;
+import javax.ws.rs.core.HttpHeaders;
+import javax.ws.rs.core.MultivaluedMap;
+import javax.ws.rs.core.NewCookie;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.core.UriInfo;
 import java.net.URI;
 import java.util.LinkedList;
 import java.util.List;
@@ -125,7 +140,7 @@ public class AuthenticationManager {
             if (brokerId != null) {
                 IdentityProvider identityProvider = IdentityBrokerService.getIdentityProvider(session, realm, brokerId);
                 try {
-                    identityProvider.backchannelLogout(userSession, uriInfo, realm);
+                    identityProvider.backchannelLogout(session, userSession, uriInfo, realm);
                 } catch (Exception e) {
                 }
             }
@@ -221,7 +236,7 @@ public class AuthenticationManager {
         String brokerId = userSession.getNote(Details.IDENTITY_PROVIDER);
         if (brokerId != null) {
             IdentityProvider identityProvider = IdentityBrokerService.getIdentityProvider(session, realm, brokerId);
-            Response response = identityProvider.keycloakInitiatedBrowserLogout(userSession, uriInfo, realm);
+            Response response = identityProvider.keycloakInitiatedBrowserLogout(session, userSession, uriInfo, realm);
             if (response != null) return response;
         }
         return finishBrowserLogout(session, realm, userSession, uriInfo, connection, headers);
@@ -259,7 +274,7 @@ public class AuthenticationManager {
         return token;
     }
 
-    public static void createLoginCookie(RealmModel realm, UserModel user, UserSessionModel session, UriInfo uriInfo, ClientConnection connection) {
+    public static void createLoginCookie(KeycloakSession keycloakSession, RealmModel realm, UserModel user, UserSessionModel session, UriInfo uriInfo, ClientConnection connection) {
         String cookiePath = getIdentityCookiePath(realm, uriInfo);
         String issuer = Urls.realmIssuer(uriInfo.getBaseUri(), realm.getName());
         AccessToken identityToken = createIdentityToken(realm, user, session, issuer);
@@ -280,7 +295,7 @@ public class AuthenticationManager {
         // THIS SHOULD NOT BE A HTTPONLY COOKIE!  It is used for OpenID Connect Iframe Session support!
         // Max age should be set to the max lifespan of the session as it's used to invalidate old-sessions on re-login
         CookieHelper.addCookie(KEYCLOAK_SESSION_COOKIE, sessionCookieValue, cookiePath, null, null, realm.getSsoSessionMaxLifespan(), secureOnly, false);
-
+        P3PHelper.addP3PHeader(keycloakSession);
     }
 
     public static void createRememberMeCookie(RealmModel realm, String username, UriInfo uriInfo, ClientConnection connection) {
@@ -363,9 +378,9 @@ public class AuthenticationManager {
 
 
     public static Response redirectAfterSuccessfulFlow(KeycloakSession session, RealmModel realm, UserSessionModel userSession,
-                                                ClientSessionModel clientSession,
-                                                HttpRequest request, UriInfo uriInfo, ClientConnection clientConnection,
-                                                EventBuilder event) {
+                                                       ClientSessionModel clientSession,
+                                                       HttpRequest request, UriInfo uriInfo, ClientConnection clientConnection,
+                                                       EventBuilder event) {
         LoginProtocol protocol = session.getProvider(LoginProtocol.class, clientSession.getAuthMethod());
         protocol.setRealm(realm)
                 .setHttpHeaders(request.getHttpHeaders())
@@ -399,15 +414,15 @@ public class AuthenticationManager {
         session.getContext().resolveLocale(userSession.getUser());
 
         // refresh the cookies!
-        createLoginCookie(realm, userSession.getUser(), userSession, uriInfo, clientConnection);
+        createLoginCookie(session, realm, userSession.getUser(), userSession, uriInfo, clientConnection);
         if (userSession.getState() != UserSessionModel.State.LOGGED_IN) userSession.setState(UserSessionModel.State.LOGGED_IN);
         if (userSession.isRememberMe()) createRememberMeCookie(realm, userSession.getUser().getUsername(), uriInfo, clientConnection);
         return protocol.authenticated(userSession, new ClientSessionCode(realm, clientSession));
 
     }
     public static Response nextActionAfterAuthentication(KeycloakSession session, UserSessionModel userSession, ClientSessionModel clientSession,
-                                                  ClientConnection clientConnection,
-                                                  HttpRequest request, UriInfo uriInfo, EventBuilder event) {
+                                                         ClientConnection clientConnection,
+                                                         HttpRequest request, UriInfo uriInfo, EventBuilder event) {
         Response requiredAction = actionRequired(session, userSession, clientSession, clientConnection, request, uriInfo, event);
         if (requiredAction != null) return requiredAction;
         return finishedRequiredActions(session, userSession, clientSession, clientConnection, request, uriInfo, event);
@@ -472,8 +487,8 @@ public class AuthenticationManager {
 
 
     public static Response actionRequired(final KeycloakSession session, final UserSessionModel userSession, final ClientSessionModel clientSession,
-                                                         final ClientConnection clientConnection,
-                                                         final HttpRequest request, final UriInfo uriInfo, final EventBuilder event) {
+                                          final ClientConnection clientConnection,
+                                          final HttpRequest request, final UriInfo uriInfo, final EventBuilder event) {
         final RealmModel realm = clientSession.getRealm();
         final UserModel user = userSession.getUser();
         final ClientModel client = clientSession.getClient();

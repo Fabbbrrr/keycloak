@@ -203,6 +203,7 @@ module.controller('ObjectModalCtrl', function($scope, object) {
 module.controller('RealmDetailCtrl', function($scope, Current, Realm, realm, serverInfo, $http, $location, Dialog, Notifications, Auth) {
     $scope.createRealm = !realm.realm;
     $scope.serverInfo = serverInfo;
+    $scope.realmName = realm.realm;
 
     if (Current.realm == null || Current.realm.realm != realm.realm) {
         for (var i = 0; i < Current.realms.length; i++) {
@@ -228,11 +229,17 @@ module.controller('RealmDetailCtrl', function($scope, Current, Realm, realm, ser
             $scope.changed = true;
         }
     }, true);
+    $scope.$watch('realmName', function() {
+        if (!angular.equals($scope.realmName, oldCopy.realm)) {
+            $scope.changed = true;
+        }
+    }, true);
 
     $scope.save = function() {
         var realmCopy = angular.copy($scope.realm);
+        realmCopy.realm = $scope.realmName;
         $scope.changed = false;
-        var nameChanged = !angular.equals($scope.realm.realm, oldCopy.realm)
+        var nameChanged = !angular.equals($scope.realmName, oldCopy.realm);
         Realm.update({ id : oldCopy.realm}, realmCopy, function () {
             var data = Realm.query(function () {
                 Current.realms = data;
@@ -1830,11 +1837,28 @@ module.controller('AuthenticationFlowsCtrl', function($scope, $route, realm, flo
 
     $scope.removeFlow = function() {
         console.log('Remove flow:' + $scope.flow.alias);
-        AuthenticationFlows.remove({realm: realm.realm, flow: $scope.flow.id}, function() {
-            $location.url("/realms/" + realm.realm + '/authentication/flows');
-            Notifications.success("Flow removed");
+        if (realm.browserFlow == $scope.flow.alias) {
+            Notifications.error("Cannot remove flow, it is currently being used as the browser flow.");
 
-        })
+        }  else if (realm.registrationFlow == $scope.flow.alias) {
+            Notifications.error("Cannot remove flow, it is currently being used as the registration flow.");
+
+        } else if (realm.directGrantFlow == $scope.flow.alias) {
+            Notifications.error("Cannot remove flow, it is currently being used as the direct grant flow.");
+
+        } else if (realm.resetCredentialsFlow == $scope.flow.alias) {
+            Notifications.error("Cannot remove flow, it is currently being used as the reset credentials flow.");
+
+        } else if (realm.clientAuthenticationFlow == $scope.flow.alias) {
+            Notifications.error("Cannot remove flow, it is currently being used as the client authentication flow.");
+
+        } else {
+            AuthenticationFlows.remove({realm: realm.realm, flow: $scope.flow.id}, function () {
+                $location.url("/realms/" + realm.realm + '/authentication/flows');
+                Notifications.success("Flow removed");
+
+            })
+        }
 
     };
 
@@ -2117,6 +2141,7 @@ module.controller('RealmImportCtrl', function($scope, realm, $route,
     $scope.overwrite = false;
     $scope.skip = false;
     $scope.importUsers = false;
+    $scope.importGroups = false;
     $scope.importClients = false;
     $scope.importIdentityProviders = false;
     $scope.importRealmRoles = false;
@@ -2147,11 +2172,7 @@ module.controller('RealmImportCtrl', function($scope, realm, $route,
         }
         
         $scope.importing = true;
-        $scope.importUsers = $scope.hasArray('users');
-        $scope.importClients = $scope.hasArray('clients');
-        $scope.importIdentityProviders = $scope.hasArray('identityProviders');
-        $scope.importRealmRoles = $scope.hasRealmRoles();
-        $scope.importClientRoles = $scope.hasClientRoles();
+        setOnOffSwitchDefaults();
         $scope.results = {};
         if (!$scope.hasResources()) {
             $scope.nothingToImport();
@@ -2178,6 +2199,15 @@ module.controller('RealmImportCtrl', function($scope, realm, $route,
         var endIndex = startIndex() + pageSize;
         if (endIndex > length) endIndex = length;
         return endIndex;
+    }
+    
+    function setOnOffSwitchDefaults() {
+        $scope.importUsers = $scope.hasArray('users');
+        $scope.importGroups = $scope.hasArray('groups');
+        $scope.importClients = $scope.hasArray('clients');
+        $scope.importIdentityProviders = $scope.hasArray('identityProviders');
+        $scope.importRealmRoles = $scope.hasRealmRoles();
+        $scope.importClientRoles = $scope.hasClientRoles();
     }
     
     $scope.setFirstPage = function() {
@@ -2256,6 +2286,7 @@ module.controller('RealmImportCtrl', function($scope, realm, $route,
     
     $scope.hasResources = function() {
         return ($scope.importUsers && $scope.hasArray('users')) ||
+               ($scope.importGroups && $scope.hasArray('groups')) ||
                ($scope.importClients && $scope.hasArray('clients')) ||
                ($scope.importIdentityProviders && $scope.hasArray('identityProviders')) ||
                ($scope.importRealmRoles && $scope.hasRealmRoles()) ||
@@ -2270,6 +2301,7 @@ module.controller('RealmImportCtrl', function($scope, realm, $route,
         if (!angular.equals($scope.fileContent, oldCopy)) {
             $scope.changed = true;
         }
+        setOnOffSwitchDefaults();
     }, true);
     
     $scope.successMessage = function() {
@@ -2287,6 +2319,7 @@ module.controller('RealmImportCtrl', function($scope, realm, $route,
         var json = angular.copy($scope.fileContent);
         json.ifResourceExists = $scope.ifResourceExists;
         if (!$scope.importUsers) delete json.users;
+        if (!$scope.importGroups) delete json.groups;
         if (!$scope.importIdentityProviders) delete json.identityProviders;
         if (!$scope.importClients) delete json.clients;
         
