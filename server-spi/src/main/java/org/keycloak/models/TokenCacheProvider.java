@@ -16,6 +16,7 @@ public interface TokenCacheProvider extends Provider {
      * @param realm
      */
     void addToken(String guid, String token, long expiration, long ttl, String username, String realm);
+    void addToken(String guid, String token, long expiration, long ttl, long refreshIn, String username, String realm);
     void removeToken(String guid);
 
     void close();
