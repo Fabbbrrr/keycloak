@@ -64,6 +64,9 @@ public class KeycloakServerDeploymentProcessor implements DeploymentUnitProcesso
             st.addDependency(cacheContainerService.append("loginFailures"));
             st.addDependency(cacheContainerService.append("work"));
             st.addDependency(cacheContainerService.append("realmVersions"));
+            st.addDependency(cacheContainerService.append("tokens"));
+            st.addDependency(cacheContainerService.append("tokensExpiration"));
+            st.addDependency(cacheContainerService.append("tokensExpired"));
         }
     }
 

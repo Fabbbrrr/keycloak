@@ -86,14 +86,6 @@ public class DefaultInfinispanConnectionProviderFactory implements InfinispanCon
                     } else {
                         initEmbedded();
                     }
-                    // Sportsbet - Enable indexing on tokens cache
-                    if (cacheManager.getCacheConfiguration(InfinispanConnectionProvider.TOKEN_CACHE_NAME) != null) {
-                        Configuration tokensCacheConfig = cacheManager.getCacheConfiguration(InfinispanConnectionProvider.TOKEN_CACHE_NAME);
-                        ConfigurationBuilder tokensConfBuilder = new ConfigurationBuilder().read(tokensCacheConfig);
-                        tokensConfBuilder.indexing().enable().indexLocalOnly(true);
-                        Configuration tokensConfig = tokensConfBuilder.build();
-                        cacheManager.defineConfiguration(InfinispanConnectionProvider.TOKEN_CACHE_NAME, tokensConfig);
-                    }
                 }
             }
         }
