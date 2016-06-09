@@ -17,6 +17,7 @@
 
 package org.keycloak.testsuite.adapter.federation;
 
+import static org.keycloak.testsuite.auth.page.AuthRealm.DEMO;
 import static org.keycloak.testsuite.util.IOUtil.loadRealm;
 
 import java.security.Principal;
@@ -41,6 +42,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.keycloak.adapters.HttpClientBuilder;
 import org.keycloak.admin.client.resource.RealmResource;
@@ -77,8 +79,9 @@ public abstract class AbstractKerberosAdapterTest extends AbstractServletsAdapte
     protected ResteasyClient client;
         
     protected static LDAPEmbeddedServer ldapEmbeddedServer;
-    
-    protected AssertEvents events;
+
+    @Rule
+    public AssertEvents events = new AssertEvents(this);
     
     @Page
     protected ChangePassword changePasswordPage;
@@ -105,17 +108,16 @@ public abstract class AbstractKerberosAdapterTest extends AbstractServletsAdapte
     public void before() throws Exception {   
         testRealmPage.setAuthRealm(AuthRealm.TEST);
         changePasswordPage.setAuthRealm(testRealmPage);
+        // Global kerberos configuration
         ldapTestConfiguration = LDAPTestConfiguration.readConfiguration(getConnectionPropertiesLocation());
+        String krb5ConfPath = LDAPTestConfiguration.getResource("test-krb5.conf");
+        log.info("Krb5.conf file location is: " + krb5ConfPath);
+        System.setProperty("java.security.krb5.conf", krb5ConfPath);
         if (ldapTestConfiguration.isStartEmbeddedLdapServer() && ldapEmbeddedServer == null) {
             ldapEmbeddedServer = createServer();
             ldapEmbeddedServer.init();
             ldapEmbeddedServer.start();
         }
-        // Global kerberos configuration
-        String krb5ConfPath = LDAPTestConfiguration.getResource("test-krb5.conf");
-        log.info("Krb5.conf file location is: " + krb5ConfPath);
-        System.setProperty("java.security.krb5.conf", krb5ConfPath);
-        events = new AssertEvents(this);
         UserFederationProviderModel model = new UserFederationProviderModel();
         model.setConfig(ldapTestConfiguration.getLDAPConfig());
         spnegoSchemeFactory = new KeycloakSPNegoSchemeFactory(getKerberosConfig(model));
@@ -135,8 +137,8 @@ public abstract class AbstractKerberosAdapterTest extends AbstractServletsAdapte
             if (ldapEmbeddedServer != null) {
                 ldapEmbeddedServer.stop();
                 ldapEmbeddedServer = null;
-                ldapTestConfiguration = null;
             }
+            ldapTestConfiguration = null;
         } catch (Exception e) {
             throw new RuntimeException("Error tearDown Embedded LDAP server.", e);
         }
@@ -184,7 +186,7 @@ public abstract class AbstractKerberosAdapterTest extends AbstractServletsAdapte
     // KEYCLOAK-2102
     @Test
     public void spnegoCaseInsensitiveTest() throws Exception {
-        Response spnegoResponse = spnegoLogin("MyDuke", "theduke");
+        Response spnegoResponse = spnegoLogin(ldapTestConfiguration.isCaseSensitiveLogin() ? "MyDuke" : "myduke", "theduke");
         Assert.assertEquals(302, spnegoResponse.getStatus());
         List<UserRepresentation> users = testRealmResource().users().search("myduke", 0, 1);
         String userId = users.get(0).getId();
@@ -362,5 +364,11 @@ public abstract class AbstractKerberosAdapterTest extends AbstractServletsAdapte
         defaultProperties.setProperty(LDAPEmbeddedServer.PROPERTY_DSF, LDAPEmbeddedServer.DSF_INMEMORY);
         defaultProperties.setProperty(LDAPEmbeddedServer.PROPERTY_LDIF_FILE, "classpath:kerberos/users-kerberos.ldif");
         return new KerberosEmbeddedServer(defaultProperties);
+    }
+
+    @Override
+    public void setDefaultPageUriParameters() {
+        super.setDefaultPageUriParameters();
+        testRealmPage.setAuthRealm(AuthRealm.TEST);
     }
 }

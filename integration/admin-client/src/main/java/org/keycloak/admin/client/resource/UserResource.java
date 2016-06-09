@@ -119,6 +119,10 @@ public interface UserResource {
     public List<UserSessionRepresentation> getUserSessions();
 
     @GET
+    @Path("offline-sessions/{clientId}")
+    List<UserSessionRepresentation> getOfflineSessions(@PathParam("clientId") String clientId);
+
+    @GET
     @Path("federated-identity")
     public List<FederatedIdentityRepresentation> getFederatedIdentity();
 
@@ -142,4 +146,8 @@ public interface UserResource {
     @Path("consents/{client}")
     public void revokeConsent(@PathParam("client") String clientId);
 
+    @POST
+    @Path("impersonation")
+    @Produces(MediaType.APPLICATION_JSON)
+    Map<String, Object> impersonate();
 }

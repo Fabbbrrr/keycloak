@@ -24,7 +24,7 @@
     <parent>
         <groupId>org.keycloak.testsuite</groupId>
         <artifactId>integration-arquillian</artifactId>
-        <version>1.9.2.Final</version>
+        <version>1.9.8.Final-SNAPSHOT</version>
     </parent>
 
     <packaging>pom</packaging>
@@ -56,7 +56,9 @@
         <auth.server.ssl.required>false</auth.server.ssl.required>
         <auth.server.jboss.startup.timeout>60</auth.server.jboss.startup.timeout>
         <auth.server.memory.settings>-Xms64m -Xmx512m -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m</auth.server.memory.settings>
-
+        <auth.server.config.property.name>serverConfig</auth.server.config.property.name>
+        <auth.server.adapter.impl.class>org.jboss.as.arquillian.container.managed.ManagedDeployableContainer</auth.server.adapter.impl.class>
+        
         <auth.server.jboss.artifactId>integration-arquillian-servers-auth-server-${auth.server}</auth.server.jboss.artifactId>
         <auth.server.jboss.skip.unpack>${auth.server.undertow}</auth.server.jboss.skip.unpack>
         <auth.server.jboss.startup.timeout>300</auth.server.jboss.startup.timeout>
@@ -154,6 +156,10 @@
                             <auth.server.ssl.required>${auth.server.ssl.required}</auth.server.ssl.required>
                             <auth.server.jboss.startup.timeout>${auth.server.jboss.startup.timeout}</auth.server.jboss.startup.timeout>
                             <auth.server.config.dir>${auth.server.config.dir}</auth.server.config.dir>
+                            <auth.server.config.property.name>${auth.server.config.property.name}</auth.server.config.property.name>
+                            <auth.server.config.property.value>${auth.server.config.property.value}</auth.server.config.property.value>
+                            <auth.server.adapter.impl.class>${auth.server.adapter.impl.class}</auth.server.adapter.impl.class>
+                            
                             <frontend.console.output>${frontend.console.output}</frontend.console.output>
                             <backends.console.output>${backend.console.output}</backends.console.output>
 
@@ -193,7 +199,6 @@
                 <dependency>
                     <groupId>org.wildfly</groupId>
                     <artifactId>wildfly-arquillian-container-remote</artifactId>
-                    <version>${arquillian-wildfly-container.version}</version>
                 </dependency>
             </dependencies>
         </profile>
@@ -204,12 +209,13 @@
                 <auth.server>wildfly</auth.server>
                 <auth.server.jboss>true</auth.server.jboss>
                 <auth.server.undertow>false</auth.server.undertow>
+                <auth.server.config.property.value>standalone.xml</auth.server.config.property.value>
                 <auth.server.config.dir>${auth.server.home}/standalone/configuration</auth.server.config.dir>
                 <h2.version>1.3.173</h2.version>
             </properties>
             <dependencies>
                 <dependency>
-                    <groupId>org.wildfly</groupId>
+                    <groupId>org.wildfly.arquillian</groupId>
                     <artifactId>wildfly-arquillian-container-managed</artifactId>
                 </dependency>
             </dependencies>
@@ -221,12 +227,13 @@
                 <auth.server>eap</auth.server>
                 <auth.server.jboss>true</auth.server.jboss>
                 <auth.server.undertow>false</auth.server.undertow>
+                <auth.server.config.property.value>standalone.xml</auth.server.config.property.value>
                 <auth.server.config.dir>${auth.server.home}/standalone/configuration</auth.server.config.dir>
                 <h2.version>1.3.173</h2.version>
             </properties>
             <dependencies>
                 <dependency>
-                    <groupId>org.wildfly</groupId>
+                    <groupId>org.wildfly.arquillian</groupId>
                     <artifactId>wildfly-arquillian-container-managed</artifactId>
                 </dependency>
             </dependencies>
@@ -659,6 +666,7 @@
                 <dependency>
                     <groupId>org.jboss.arquillian.extension</groupId>
                     <artifactId>arquillian-phantom-driver</artifactId>
+                    <version>1.2.1.Final</version>
                 </dependency>
                 <dependency>
                     <groupId>org.jboss.arquillian.graphene</groupId>
@@ -865,6 +873,11 @@
                     <groupId>org.postgresql</groupId>
                     <artifactId>postgresql</artifactId>
                     <version>${postgresql.version}</version>
+                </dependency>
+                <dependency>
+                    <groupId>org.mariadb.jdbc</groupId>
+                    <artifactId>mariadb-java-client</artifactId>
+                    <version>${mariadb.version}</version>
                 </dependency>
 
             </dependencies>

@@ -21,7 +21,7 @@
     <parent>
         <groupId>org.keycloak.testsuite</groupId>
         <artifactId>integration-arquillian-tests</artifactId>
-        <version>1.9.2.Final</version>
+        <version>1.9.8.Final-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -59,7 +59,7 @@
         </dependency>
         <dependency>
             <groupId>org.keycloak.testsuite</groupId>
-            <artifactId>integration-arquillian-event-queue</artifactId>
+            <artifactId>integration-arquillian-testsuite-providers</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>

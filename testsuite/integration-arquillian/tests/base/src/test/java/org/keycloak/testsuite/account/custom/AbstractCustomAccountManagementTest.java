@@ -18,13 +18,11 @@
 package org.keycloak.testsuite.account.custom;
 
 import java.util.List;
-import javax.ws.rs.core.GenericType;
-import javax.ws.rs.core.Response;
+
 import org.junit.Before;
 import org.keycloak.admin.client.resource.AuthenticationManagementResource;
 import org.keycloak.models.AuthenticationExecutionModel;
 import org.keycloak.representations.idm.AuthenticationExecutionInfoRepresentation;
-import org.keycloak.testsuite.account.AbstractAccountManagementTest;
 
 /**
  *
@@ -56,14 +54,8 @@ public abstract class AbstractCustomAccountManagementTest extends AbstractAccoun
     }
     
     protected AuthenticationExecutionInfoRepresentation getExecution(String flowAlias, String provider) {
-        Response response = authMgmtResource.getExecutions(flowAlias);
-        
-        List<AuthenticationExecutionInfoRepresentation> executionReps = response.readEntity(
-                new GenericType<List<AuthenticationExecutionInfoRepresentation>>() {
-                });
-        
-        response.close();
-        
+        List<AuthenticationExecutionInfoRepresentation> executionReps = authMgmtResource.getExecutions(flowAlias);
+
         for (AuthenticationExecutionInfoRepresentation exec : executionReps) {
             if (provider.equals(exec.getProviderId())) {
                 return exec;

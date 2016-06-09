@@ -18,6 +18,7 @@ package org.keycloak.services.managers;
 
 import org.keycloak.Config;
 import org.keycloak.common.enums.SslRequired;
+import org.keycloak.models.PasswordPolicy;
 import org.keycloak.models.session.UserSessionPersisterProvider;
 import org.keycloak.models.utils.RealmImporter;
 import org.keycloak.models.AccountRoles;
@@ -218,6 +219,8 @@ public class RealmManager implements RealmImporter {
         realm.setOTPPolicy(OTPPolicy.DEFAULT_POLICY);
 
         realm.setEventsListeners(Collections.singleton("jboss-logging"));
+
+        realm.setPasswordPolicy(new PasswordPolicy("hashIterations(20000)"));
     }
 
     public boolean removeRealm(RealmModel realm) {
@@ -267,7 +270,7 @@ public class RealmManager implements RealmImporter {
     }
 
 
-    private void setupMasterAdminManagement(RealmModel realm) {
+    public void setupMasterAdminManagement(RealmModel realm) {
         // Need to refresh masterApp for current realm
         String adminRealmId = Config.getAdminRealm();
         RealmModel adminRealm = model.getRealm(adminRealmId);

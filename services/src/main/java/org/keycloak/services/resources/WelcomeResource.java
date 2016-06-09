@@ -20,14 +20,11 @@ import org.keycloak.Config;
 import org.keycloak.common.ClientConnection;
 import org.keycloak.common.util.MimeTypeUtil;
 import org.keycloak.models.BrowserSecurityHeaders;
-import org.keycloak.models.Constants;
 import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.RealmModel;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.services.ForbiddenException;
 import org.keycloak.services.ServicesLogger;
 import org.keycloak.services.managers.ApplianceBootstrap;
-import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.util.CacheControlUtil;
 import org.keycloak.services.util.CookieHelper;
 import org.keycloak.theme.BrowserSecurityHeaderSetup;
@@ -81,8 +78,6 @@ public class WelcomeResource {
     @Context
     private KeycloakSession session;
 
-    private String stateChecker;
-
     public WelcomeResource(boolean bootstrap) {
         this.bootstrap = bootstrap;
     }
@@ -119,8 +114,9 @@ public class WelcomeResource {
                 throw new WebApplicationException(Response.Status.BAD_REQUEST);
             }
 
-            String stateChecker = formData.getFirst("stateChecker");
-            csrfCheck(stateChecker);
+            String cookieStateChecker = getCsrfCookie();
+            String formStateChecker = formData.getFirst("stateChecker");
+            csrfCheck(cookieStateChecker, formStateChecker);
 
             String username = formData.getFirst("username");
             String password = formData.getFirst("password");
@@ -181,10 +177,13 @@ public class WelcomeResource {
             Map<String, Object> map = new HashMap<>();
             map.put("bootstrap", bootstrap);
             if (bootstrap) {
-                map.put("localUser", isLocal());
+                boolean isLocal = isLocal();
+                map.put("localUser", isLocal);
 
-                updateCsrfChecks();
-                map.put("stateChecker", stateChecker);
+                if (isLocal) {
+                    String stateChecker = updateCsrfChecks();
+                    map.put("stateChecker", stateChecker);
+                }
             }
             if (successMessage != null) {
                 map.put("successMessage", successMessage);
@@ -223,27 +222,44 @@ public class WelcomeResource {
 
     private boolean isLocal() {
         try {
-            InetAddress inetAddress = InetAddress.getByName(session.getContext().getConnection().getRemoteAddr());
-            return inetAddress.isAnyLocalAddress() || inetAddress.isLoopbackAddress();
+            ClientConnection clientConnection = session.getContext().getConnection();
+            InetAddress remoteInetAddress = InetAddress.getByName(clientConnection.getRemoteAddr());
+            InetAddress localInetAddress = InetAddress.getByName(clientConnection.getLocalAddr());
+            String xForwardedFor = headers.getHeaderString("X-Forwarded-For");
+            logger.debugf("Checking WelcomePage. Remote address: %s, Local address: %s, X-Forwarded-For header: %s", remoteInetAddress.toString(), localInetAddress.toString(), xForwardedFor);
+
+            // Access through AJP protocol (loadbalancer) may cause that remoteAddress is "127.0.0.1".
+            // So consider that welcome page accessed locally just if it was accessed really through "localhost" URL and without loadbalancer (x-forwarded-for header is empty).
+            return isLocalAddress(remoteInetAddress) && isLocalAddress(localInetAddress) && xForwardedFor == null;
         } catch (UnknownHostException e) {
             throw new WebApplicationException(Response.Status.INTERNAL_SERVER_ERROR);
         }
     }
 
-    private void updateCsrfChecks() {
-        Cookie cookie = headers.getCookies().get(KEYCLOAK_STATE_CHECKER);
-        if (cookie != null) {
-            stateChecker = cookie.getValue();
+    private boolean isLocalAddress(InetAddress inetAddress) {
+        return inetAddress.isAnyLocalAddress() || inetAddress.isLoopbackAddress();
+    }
+
+    private String updateCsrfChecks() {
+        String stateChecker = getCsrfCookie();
+        if (stateChecker != null) {
+            return stateChecker;
         } else {
             stateChecker = KeycloakModelUtils.generateSecret();
             String cookiePath = uriInfo.getPath();
             boolean secureOnly = uriInfo.getRequestUri().getScheme().equalsIgnoreCase("https");
             CookieHelper.addCookie(KEYCLOAK_STATE_CHECKER, stateChecker, cookiePath, null, null, -1, secureOnly, true);
+            return stateChecker;
         }
     }
 
-    private void csrfCheck(String stateChecker) {
-        if (!this.stateChecker.equals(stateChecker)) {
+    private String getCsrfCookie() {
+        Cookie cookie = headers.getCookies().get(KEYCLOAK_STATE_CHECKER);
+        return cookie==null ? null : cookie.getValue();
+    }
+
+    private void csrfCheck(String cookieStateChecker, String formStateChecker) {
+        if (cookieStateChecker == null || !cookieStateChecker.equals(formStateChecker)) {
             throw new ForbiddenException();
         }
     }

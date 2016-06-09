@@ -17,20 +17,15 @@
 
 package org.keycloak.testsuite;
 
-import org.apache.commons.io.IOUtils;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 import org.junit.Assert;
+import org.junit.rules.TestRule;
+import org.junit.runners.model.Statement;
 import org.keycloak.OAuth2Constants;
-import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.authentication.authenticators.client.ClientIdAndSecretAuthenticator;
-import org.keycloak.common.util.PemUtils;
 import org.keycloak.events.Details;
 import org.keycloak.events.EventType;
 import org.keycloak.representations.idm.ClientRepresentation;
@@ -38,11 +33,9 @@ import org.keycloak.representations.idm.EventRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.representations.idm.UserSessionRepresentation;
-import org.keycloak.util.JsonSerialization;
 import org.keycloak.util.TokenUtil;
 
-import java.io.IOException;
-import java.security.PublicKey;
+import javax.ws.rs.core.Response;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,7 +43,7 @@ import java.util.Map;
 /**
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
  */
-public class AssertEvents {
+public class AssertEvents implements TestRule {
 
     public static final String DEFAULT_CLIENT_ID = "test-app";
     public static final String DEFAULT_IP_ADDRESS = "127.0.0.1";
@@ -58,34 +51,24 @@ public class AssertEvents {
     public static final String DEFAULT_USERNAME = "test-user@localhost";
 
     String defaultRedirectUri = "http://localhost:8180/auth/realms/master/app/auth";
-    String defaultEventsQueueUri = "http://localhost:8092";
 
-    private RealmResource realmResource;
-    private RealmRepresentation realmRep;
     private AbstractKeycloakTest context;
-    private PublicKey realmPublicKey;
-    private UserRepresentation defaultUser;
 
-    public AssertEvents(AbstractKeycloakTest ctx) throws Exception {
+    public AssertEvents(AbstractKeycloakTest ctx) {
         context = ctx;
-
-        realmResource = context.adminClient.realms().realm(DEFAULT_REALM);
-        realmRep = realmResource.toRepresentation();
-        String pubKeyString = realmRep.getPublicKey();
-        realmPublicKey = PemUtils.decodePublicKey(pubKeyString);
-
-        defaultUser = getUser(DEFAULT_USERNAME);
-        if (defaultUser == null) {
-            throw new RuntimeException("Default user does not exist: " + DEFAULT_USERNAME + ". Make sure to add it to your test realm.");
-        }
-
-        defaultEventsQueueUri = getAuthServerEventsQueueUri();
     }
 
-    String getAuthServerEventsQueueUri() {
-        int httpPort = Integer.parseInt(System.getProperty("auth.server.event.http.port", "8089"));
-        int portOffset = Integer.parseInt(System.getProperty("auth.server.port.offset", "0"));
-        return "http://localhost:" + (httpPort + portOffset);
+    @Override
+    public Statement apply(final Statement base, org.junit.runner.Description description) {
+        return new Statement() {
+            @Override
+            public void evaluate() throws Throwable {
+                // TODO: Ideally clear the queue just before testClass rather then before each method
+                context.getTestingClient().testing().clearEventQueue();
+                base.evaluate();
+                // TODO Test should fail if there are leftover events
+            }
+        };
     }
 
     public EventRepresentation poll() {
@@ -95,23 +78,17 @@ public class AssertEvents {
         return event;
     }
 
+    public void assertEmpty() {
+        EventRepresentation event = fetchNextEvent();
+        Assert.assertNull("Empty event queue expected, but there is " + event, event);
+    }
+
     public void clear() {
-        CloseableHttpClient httpclient = HttpClients.createDefault();
+        Response res = context.testingClient.testing().clearEventQueue();
         try {
-            HttpPost post = new HttpPost(defaultEventsQueueUri + "/clear-event-queue");
-            CloseableHttpResponse response = httpclient.execute(post);
-            if (response.getStatusLine().getStatusCode() != 200) {
-                throw new RuntimeException("Failed to clear events from " + post.getURI() + ": " + response.getStatusLine().toString());
-            }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        finally {
-            try {
-                httpclient.close();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+            Assert.assertEquals("clear-event-queue success", res.getStatus(), 200);
+        } finally {
+            res.close();
         }
     }
 
@@ -190,37 +167,32 @@ public class AssertEvents {
 
     public ExpectedEvent expect(EventType event) {
         return new ExpectedEvent()
-                .realm(realmRep.getId())
+                .realm(defaultRealmId())
                 .client(DEFAULT_CLIENT_ID)
-                .user(defaultUser.getId())
+                .user(defaultUserId())
                 .ipAddress(DEFAULT_IP_ADDRESS)
                 .session((String) null)
                 .event(event);
     }
 
-    UserRepresentation getUser(String username) {
-        List<UserRepresentation> result = realmResource.users().search(username, null, null, null, 0, 1);
-        return result.size() > 0 ? result.get(0) : null;
-    }
-
-    public PublicKey getRealmPublicKey() {
-        return realmPublicKey;
-    }
-
     public class ExpectedEvent {
         private EventRepresentation expected = new EventRepresentation();
+        private Matcher<String> realmId;
         private Matcher<String> userId;
         private Matcher<String> sessionId;
         private HashMap<String, Matcher<String>> details;
 
-        public ExpectedEvent realm(RealmRepresentation realm) {
-            expected.setRealmId(realm.getId());
+        public ExpectedEvent realm(Matcher<String> realmId) {
+            this.realmId = realmId;
             return this;
         }
 
+        public ExpectedEvent realm(RealmRepresentation realm) {
+            return realm(CoreMatchers.equalTo(realm.getId()));
+        }
+
         public ExpectedEvent realm(String realmId) {
-            expected.setRealmId(realmId);
-            return this;
+            return realm(CoreMatchers.equalTo(realmId));
         }
 
         public ExpectedEvent client(ClientRepresentation client) {
@@ -307,7 +279,7 @@ public class AssertEvents {
                 expected.setType(expected.getType() + "_ERROR");
             }
             Assert.assertEquals(expected.getType(), actual.getType());
-            Assert.assertEquals(expected.getRealmId(), actual.getRealmId());
+            Assert.assertThat(actual.getRealmId(), realmId);
             Assert.assertEquals(expected.getClientId(), actual.getClientId());
             Assert.assertEquals(expected.getError(), actual.getError());
             Assert.assertEquals(expected.getIpAddress(), actual.getIpAddress());
@@ -357,25 +329,68 @@ public class AssertEvents {
         };
     }
 
-    private EventRepresentation fetchNextEvent() {
-        CloseableHttpClient httpclient = HttpClients.createDefault();
-        try {
-            HttpPost post = new HttpPost(defaultEventsQueueUri + "/event-queue");
-            CloseableHttpResponse response = httpclient.execute(post);
-            if (response.getStatusLine().getStatusCode() != 200) {
-                throw new RuntimeException("Failed to retrieve event from " + post.getURI() + ": " + response.getStatusLine().toString() + " / " + IOUtils.toString(response.getEntity().getContent()));
+    public Matcher<String> defaultRealmId() {
+        return new TypeSafeMatcher<String>() {
+            private String realmId;
+
+            @Override
+            protected boolean matchesSafely(String item) {
+                return item.equals(getRealmId());
             }
 
-            return JsonSerialization.readValue(response.getEntity().getContent(), EventRepresentation.class);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        finally {
-            try {
-                httpclient.close();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+            @Override
+            public void describeTo(Description description) {
+                description.appendText(getRealmId());
             }
-        }
+
+            private String getRealmId() {
+                if (realmId == null) {
+                    RealmRepresentation realm = context.adminClient.realm(DEFAULT_REALM).toRepresentation();
+                    if (realm == null) {
+                        throw new RuntimeException("Default user does not exist: " + DEFAULT_USERNAME + ". Make sure to add it to your test realm.");
+                    }
+                    realmId = realm.getId();
+                }
+                return realmId;
+            }
+
+        };
+    }
+
+    public Matcher<String> defaultUserId() {
+        return new TypeSafeMatcher<String>() {
+            private String userId;
+
+            @Override
+            protected boolean matchesSafely(String item) {
+                return item.equals(getUserId());
+            }
+
+            @Override
+            public void describeTo(Description description) {
+                description.appendText(getUserId());
+            }
+
+            private String getUserId() {
+                if (userId == null) {
+                    UserRepresentation user = getUser(DEFAULT_USERNAME);
+                    if (user == null) {
+                        throw new RuntimeException("Default user does not exist: " + DEFAULT_USERNAME + ". Make sure to add it to your test realm.");
+                    }
+                    userId = user.getId();
+                }
+                return userId;
+            }
+
+        };
+    }
+
+    private UserRepresentation getUser(String username) {
+        List<UserRepresentation> users = context.adminClient.realm(DEFAULT_REALM).users().search(username, null, null, null, 0, 1);
+        return users.isEmpty() ? null : users.get(0);
+    }
+
+    private EventRepresentation fetchNextEvent() {
+        return context.testingClient.testing().pollEvent();
     }
 }

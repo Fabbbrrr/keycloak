@@ -18,19 +18,17 @@ package org.keycloak.testsuite;
 
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.PropertiesConfiguration;
-import org.apache.commons.io.IOUtils;
 import org.keycloak.common.util.KeycloakUriBuilder;
+import org.keycloak.common.util.Time;
 import org.keycloak.testsuite.arquillian.TestContext;
 
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import javax.ws.rs.NotFoundException;
 import org.jboss.arquillian.container.test.api.RunAsClient;
@@ -56,9 +54,8 @@ import org.keycloak.testsuite.admin.ApiUtil;
 import org.keycloak.testsuite.arquillian.AuthServerTestEnricher;
 import org.keycloak.testsuite.arquillian.SuiteContext;
 import org.keycloak.testsuite.auth.page.WelcomePage;
-import org.keycloak.testsuite.util.DeleteMeOAuthClient;
+import org.keycloak.testsuite.client.KeycloakTestingClient;
 import org.keycloak.testsuite.util.OAuthClient;
-import org.keycloak.util.JsonSerialization;
 import org.openqa.selenium.WebDriver;
 import org.keycloak.testsuite.auth.page.AuthServer;
 import org.keycloak.testsuite.auth.page.AuthServerContextRoot;
@@ -94,10 +91,10 @@ public abstract class AbstractKeycloakTest {
 
     protected Keycloak adminClient;
 
-    @ArquillianResource
-    protected OAuthClient oauthClient;
+    protected KeycloakTestingClient testingClient;
 
-    protected DeleteMeOAuthClient deleteMeOAuthClient;
+    @ArquillianResource
+    protected OAuthClient oauth;
 
     protected List<RealmRepresentation> testRealmReps;
 
@@ -129,12 +126,12 @@ public abstract class AbstractKeycloakTest {
     private boolean resetTimeOffset;
 
     @Before
-    public void beforeAbstractKeycloakTest() {
+    public void beforeAbstractKeycloakTest() throws Exception {
         adminClient = Keycloak.getInstance(AuthServerTestEnricher.getAuthServerContextRoot() + "/auth",
                 MASTER, ADMIN, ADMIN, Constants.ADMIN_CLI_CLIENT_ID);
-        deleteMeOAuthClient = new DeleteMeOAuthClient(AuthServerTestEnricher.getAuthServerContextRoot() + "/auth");
 
-        
+        getTestingClient();
+
         adminUser = createAdminUserRepresentation();
 
         setDefaultPageUriParameters();
@@ -151,8 +148,7 @@ public abstract class AbstractKeycloakTest {
 
         importTestRealms();
 
-        oauthClient.setAdminClient(adminClient);
-        oauthClient.setDriver(driver);
+        oauth.init(adminClient, driver);
     }
 
     @After
@@ -161,8 +157,8 @@ public abstract class AbstractKeycloakTest {
             resetTimeOffset();
         }
 
-//        removeTestRealms(); // keeping test realms after test to be able to inspect failures, instead deleting existing realms before import
-//        adminClient.close(); // keeping admin connection open
+        removeTestRealms(); // Remove realms after tests. Tests should cleanup after themselves!
+        adminClient.close(); // don't keep admin connection open
     }
 
     private void updateMasterAdminPassword() {
@@ -186,6 +182,17 @@ public abstract class AbstractKeycloakTest {
     public void setDefaultPageUriParameters() {
         masterRealmPage.setAuthRealm(MASTER);
         loginPage.setAuthRealm(MASTER);
+    }
+
+    public KeycloakTestingClient getTestingClient() {
+        if (testingClient == null) {
+            testingClient = KeycloakTestingClient.getInstance(AuthServerTestEnricher.getAuthServerContextRoot() + "/auth");
+        }
+        return testingClient;
+    }
+
+    public Keycloak getAdminClient() {
+        return adminClient;
     }
 
     public abstract void addTestRealms(List<RealmRepresentation> testRealms);
@@ -236,7 +243,10 @@ public abstract class AbstractKeycloakTest {
     }
 
     public void removeRealm(RealmRepresentation realm) {
-        adminClient.realms().realm(realm.getRealm()).remove();
+        try {
+            adminClient.realms().realm(realm.getRealm()).remove();
+        } catch (NotFoundException e) {
+        }
     }
     
     public RealmsResource realmsResouce() {
@@ -302,7 +312,7 @@ public abstract class AbstractKeycloakTest {
         userResource.update(userRepresentation);
     }
 
-    public void setTimeOffset(int offset) {invokeTimeOffset(offset);
+    public void setTimeOffset(int offset) {
         String response = invokeTimeOffset(offset);
         resetTimeOffset = offset != 0;
         log.debugv("Set time offset, response {0}", response);
@@ -314,27 +324,15 @@ public abstract class AbstractKeycloakTest {
         log.debugv("Reset time offset, response {0}", response);
     }
 
+    public int getCurrentTime() {
+        return Time.currentTime();
+    }
+
     private String invokeTimeOffset(int offset) {
-        try {
-            String data = JsonSerialization.writeValueAsString(Collections.singletonMap("offset", String.valueOf(offset)));
-            URI uri = KeycloakUriBuilder.fromUri(suiteContext.getAuthServerInfo().getContextRoot().toURI()).path("/auth/realms/master/time-offset").build();
-            HttpURLConnection connection = (HttpURLConnection) uri.toURL().openConnection();
-            connection.setDoOutput(true);
-            connection.setRequestMethod("PUT");
-            connection.setRequestProperty("Content-Type", "application/json");
-            connection.setRequestProperty("Content-Length", String.valueOf(data.length()));
-
-            OutputStream os = connection.getOutputStream();
-            os.write(data.getBytes());
-            os.close();
-
-            InputStream is = connection.getInputStream();
-            String response = IOUtils.toString(is);
-            is.close();
-            return response;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        // adminClient depends on Time.offset for auto-refreshing tokens
+        Time.setOffset(offset);
+        Map result = testingClient.testing().setTimeOffset(Collections.singletonMap("offset", String.valueOf(offset)));
+        return String.valueOf(result);
     }
 
     private void loadConstantsProperties() throws ConfigurationException {
